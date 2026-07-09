@@ -25,11 +25,18 @@ jobs:
 
       - name: Clone target repos (2026~ only)
         env:
-          TOKEN: ${{ secrets.REPOS_TOKEN }}
+          # A) classic PAT 하나(REPOS_TOKEN) 또는 B) org별 fine-grained 2개
+          TOKEN_ALL: ${{ secrets.REPOS_TOKEN }}
+          TOKEN_ND:  ${{ secrets.REPOS_TOKEN_ND }}   # NDMARKET org용 (fine-grained)
+          TOKEN_FO:  ${{ secrets.REPOS_TOKEN_FO }}   # fashionon-repo org용 (fine-grained)
         run: |
           set -e
           mkdir -p _repos
           node -e "require('./harvest').repoList().forEach(r=>console.log(r.key+' '+r.slug))" | while read key slug; do
+            case "$slug" in
+              fashionon-repo/*) TOKEN="${TOKEN_FO:-$TOKEN_ALL}" ;;
+              *)                TOKEN="${TOKEN_ND:-$TOKEN_ALL}" ;;
+            esac
             url="https://x-access-token:${TOKEN}@github.com/${slug}.git"
             echo "▶ clone $slug"
             git clone --quiet --no-tags --no-single-branch --shallow-since=2026-01-01 "$url" "_repos/$key" \

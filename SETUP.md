@@ -10,13 +10,27 @@
 |---|---|---|
 | `REPORT_PASSWORD` | 원하는 비밀번호 | 페이지 열람 비밀번호 (팀에 공유) |
 | `AUTHOR_MAP_JSON` | `authors.local.json` 파일 내용 전체 | 동일인/봇 매핑(개인 이메일 포함, 그래서 코드가 아닌 Secret) |
-| `REPOS_TOKEN` | GitHub PAT | 27개 레포 clone용. **classic PAT + `repo` scope**, NDMARKET·fashionon-repo 두 org 모두 read 권한 필요 |
+| clone 토큰 | 아래 A 또는 B | 27개(비공개) 레포 clone용 |
+
+### clone 토큰 — 둘 중 하나 선택
+**A. Classic PAT 1개 (간단)** — `repo` scope, NDMARKET·fashionon-repo 두 org 모두 접근 가능한 계정.
+- 시크릿 이름: `REPOS_TOKEN`
+
+**B. Fine-grained PAT 2개 (권한 최소화, 더 안전)** — fine-grained는 소유자 1명만 지정 가능하므로 org별로 1개씩.
+- `REPOS_TOKEN_ND` : owner=NDMARKET, Repository access=대상 레포, **Contents: Read-only**
+- `REPOS_TOKEN_FO` : owner=fashionon-repo, 동일 권한
+- ⚠️ org가 fine-grained PAT를 허용해야 하고 org owner 승인이 필요할 수 있음.
+- 워크플로는 org별로 토큰을 골라 쓰고, 없으면 `REPOS_TOKEN`으로 폴백.
 
 CLI로도 가능:
 ```bash
 gh secret set REPORT_PASSWORD --repo gost6967/git-metrics
 gh secret set AUTHOR_MAP_JSON --repo gost6967/git-metrics < authors.local.json
+# A) 클래식 1개
 gh secret set REPOS_TOKEN     --repo gost6967/git-metrics
+# 또는 B) fine-grained 2개
+gh secret set REPOS_TOKEN_ND  --repo gost6967/git-metrics
+gh secret set REPOS_TOKEN_FO  --repo gost6967/git-metrics
 ```
 
 ## 2. Pages 소스 지정
