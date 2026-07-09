@@ -1,0 +1,59 @@
+name: Build & Deploy report
+
+on:
+  schedule:
+    - cron: '0 21 * * *'    # 매일 06:00 KST (21:00 UTC)
+  workflow_dispatch: {}       # 수동 실행
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Clone target repos (2026~ only)
+        env:
+          TOKEN: ${{ secrets.REPOS_TOKEN }}
+        run: |
+          set -e
+          mkdir -p _repos
+          node -e "require('./harvest').repoList().forEach(r=>console.log(r.key+' '+r.slug))" | while read key slug; do
+            url="https://x-access-token:${TOKEN}@github.com/${slug}.git"
+            echo "▶ clone $slug"
+            git clone --quiet --no-tags --no-single-branch --shallow-since=2026-01-01 "$url" "_repos/$key" \
+              || git clone --quiet --no-tags --no-single-branch --depth 500 "$url" "_repos/$key" \
+              || echo "  ! skip $slug (권한/미존재)"
+          done
+
+      - name: Build encrypted Pages site
+        env:
+          REPO_BASE: _repos
+          REPORT_PASSWORD: ${{ secrets.REPORT_PASSWORD }}
+          AUTHOR_MAP_JSON: ${{ secrets.AUTHOR_MAP_JSON }}
+        run: node build.js --pages
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

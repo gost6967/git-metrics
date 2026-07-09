@@ -1,0 +1,16 @@
+{
+  "name": "nd-prod-report",
+  "version": "1.0.0",
+  "private": true,
+  "description": "NDMARKET 레포별 개발 생산성 리포트 (2026~, 월별/기여자)",
+  "scripts": {
+    "start": "node server.js",
+    "serve": "node server.js",
+    "build": "node build.js",
+    "build:fetch": "node build.js --fetch",
+    "build:pages": "node build.js --pages --fetch"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
