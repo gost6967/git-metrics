@@ -44,4 +44,4 @@ gh secret set REPOS_TOKEN_FO  --repo gost6967/git-metrics
 ## 참고
 - `REPOS_TOKEN`이 접근 못 하는 레포는 clone을 건너뛰고(로그에 `skip`) 나머지만 집계합니다.
 - 비밀번호를 바꾸려면 `REPORT_PASSWORD` 시크릿 수정 후 워크플로 재실행. (브라우저는 localStorage에 저장된 옛 비번이 실패하면 자동으로 다시 물어봄)
-- 데이터 기준: 2026-01~, main 브랜치(없으면 master), origin 기준, 병합 커밋 제외.
+- 데이터 기준: 최근 1년(2025-07~), main 브랜치(없으면 master), origin 기준, 병합 커밋 제외.

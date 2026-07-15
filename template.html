@@ -296,7 +296,7 @@ function render(){
 }
 
 // init
-function initMonths(){const m=allMonths();const DEF="2026-01";state.from=m.includes(DEF)?DEF:m[0];state.to=m[m.length-1];const fs=document.getElementById('from'),ts=document.getElementById('to');m.forEach(x=>{fs.add(new Option(x,x));ts.add(new Option(x,x));});fs.value=state.from;ts.value=state.to;document.getElementById('metric').value=state.metric;}
+function initMonths(){const m=allMonths();const DEF="2025-07";state.from=m.includes(DEF)?DEF:m[0];state.to=m[m.length-1];const fs=document.getElementById('from'),ts=document.getElementById('to');m.forEach(x=>{fs.add(new Option(x,x));ts.add(new Option(x,x));});fs.value=state.from;ts.value=state.to;document.getElementById('metric').value=state.metric;}
 initMonths();
 document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('on'));b.classList.add('on');state.tab=b.dataset.t;render();});
 document.getElementById('metric').onchange=e=>{state.metric=e.target.value;render();};
