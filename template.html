@@ -48,9 +48,27 @@
   .chk input{accent-color:var(--accent)}
   small.hint{color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0}
   .repohd{font-size:11px;color:var(--muted);margin:10px 0 4px;font-weight:700}
-  .repobox{border:1px solid var(--line);border-radius:9px;background:var(--panel);padding:8px 10px}
+  .repobox{border:1px solid var(--line);border-radius:9px;background:var(--panel);padding:8px 10px;max-height:320px;overflow-y:auto}
   .rrow{display:flex;align-items:center;gap:8px;padding:3px 2px;font-size:12.5px}
-  .rrow .layer{color:var(--muted);font-size:11px;margin-left:auto}
+  .rrow .layer{color:var(--muted);font-size:11px;margin-left:auto;text-align:right}
+  /* ── 반응형 ── */
+  @media (max-width:900px){
+    .wrap{grid-template-columns:1fr;min-height:0}
+    .side{border-right:none;border-bottom:1px solid var(--line);max-height:none;overflow:visible;position:static}
+    .main{padding:16px}
+    header{padding:14px 16px}
+    .rb{grid-template-columns:120px 1fr 66px;gap:8px;font-size:12px}
+  }
+  @media (max-width:520px){
+    body{font-size:13px}
+    h1{font-size:16px}
+    .kpi .v{font-size:18px}
+    .kpis{grid-template-columns:1fr 1fr;gap:8px}
+    .rb{grid-template-columns:90px 1fr 54px;gap:6px}
+    .rrow .layer{display:none}
+    .tabs button{padding:8px 12px;font-size:13px}
+    .card{padding:12px 12px}
+  }
 </style>
 </head>
 <body>
