@@ -171,7 +171,8 @@ const PRODUCT_COLOR={"남도마켓":"#5b9dff","복지몰":"#4ade80"};
 products.forEach((p,i)=>{if(!PRODUCT_COLOR[p])PRODUCT_COLOR[p]=PALETTE[(i+2)%PALETTE.length];});
 const cats=[...new Set(REPOS.map(r=>DATA[r].cat))];
 const catColor={};cats.forEach((c,i)=>catColor[c]=PALETTE[i%PALETTE.length]);
-const state={tab:"repo",metric:"net",group:"repo",chart:"line",from:null,to:null,noBot:true,sel:new Set(REPOS)};
+const state={tab:"repo",metric:"net",group:"repo",chart:"line",from:null,to:null,noBot:true,sel:new Set(REPOS),showAllRanks:false};
+const RANK_TOP=3; // 기본 노출 순위 (그 이후는 '상세 보기')
 
 function allMonths(){const s=new Set();REPOS.forEach(r=>DATA[r].records.forEach(x=>s.add(x.month)));return [...s].sort();}
 function monthsInRange(){const m=allMonths();const i=m.indexOf(state.from),j=m.indexOf(state.to);return m.slice(i<0?0:i,(j<0?m.length-1:j)+1);}
@@ -294,7 +295,13 @@ function renderPeople(){
   document.getElementById('kpis').innerHTML=html;
   const max=Math.max(1,...authors.map(a=>Math.abs(totals[a])));
   document.getElementById('rankMeta').textContent='('+state.sel.size+'개 레포, '+METRIC_LABEL[state.metric]+')';
-  document.getElementById('rank').innerHTML=authors.map(a=>`<div class="rb"><span class="nm" title="${a}">${a}</span><div class="bar" style="width:${Math.abs(totals[a])/max*100}%;background:${colorOf[a]}"></div><span class="vv">${fmt(totals[a])}</span></div>`).join('');
+  const rowHtml=a=>`<div class="rb"><span class="nm" title="${a}">${a}</span><div class="bar" style="width:${Math.abs(totals[a])/max*100}%;background:${colorOf[a]}"></div><span class="vv">${fmt(totals[a])}</span></div>`;
+  const shown=state.showAllRanks?authors:authors.slice(0,RANK_TOP);
+  const restN=authors.length-RANK_TOP;
+  let rankHtml=shown.map(rowHtml).join('');
+  if(restN>0) rankHtml+=`<button id="rankToggle" class="pill" style="margin-top:6px;align-self:flex-start">${state.showAllRanks?'접기':'상세 보기 (4위~'+authors.length+'위, '+restN+'명)'}</button>`;
+  const rankEl=document.getElementById('rank');rankEl.innerHTML=rankHtml;
+  const tg=document.getElementById('rankToggle');if(tg)tg.onclick=()=>{state.showAllRanks=!state.showAllRanks;render();};
   // table: author × product split (over selected repos)
   const selProds=products.filter(p=>selRepos().some(r=>DATA[r].product===p));
   document.getElementById('tblTitle').textContent='기여자별 상세 (제품 분해)';
