@@ -69,6 +69,10 @@
     .tabs button{padding:8px 12px;font-size:13px}
     .card{padding:12px 12px}
   }
+  /* 모바일: 차트(비교·통합)는 숨기고 KPI·순위·표만 표시 */
+  @media (max-width:640px){
+    #chartCard, #totalCard{display:none !important}
+  }
 </style>
 </head>
 <body>
@@ -132,7 +136,7 @@
   <main class="main">
     <div class="tabs"><button data-t="repo" class="on">레포/그룹 비교</button><button data-t="people">기여자 (누가 많이)</button></div>
     <div class="kpis" id="kpis"></div>
-    <div class="card">
+    <div class="card" id="chartCard">
       <div class="row2" style="justify-content:space-between"><b id="chartTitle"></b><small class="hint" id="chartMeta"></small></div>
       <canvas id="chart" height="360"></canvas>
       <div class="legend" id="legend"></div>
@@ -304,9 +308,9 @@ function renderPeople(){
   const tg=document.getElementById('rankToggle');if(tg)tg.onclick=()=>{state.showAllRanks=!state.showAllRanks;render();};
   // table: author × product split (over selected repos)
   const selProds=products.filter(p=>selRepos().some(r=>DATA[r].product===p));
-  document.getElementById('tblTitle').textContent='기여자별 상세 (제품 분해)';
+  document.getElementById('tblTitle').textContent='기여자별 상세 (제품 분해)'+(!state.showAllRanks&&authors.length>RANK_TOP?' · 상위 '+RANK_TOP+'위 (순위의 "상세 보기"로 전체)':'');
   let t='<thead><tr><th>기여자</th>'+selProds.map(p=>`<th><span class="dot" style="background:${PRODUCT_COLOR[p]}"></span>${p}</th>`).join('')+'<th>합계</th></tr></thead><tbody>';
-  authors.forEach(a=>{const vs=selProds.map(p=>selRepos().filter(r=>DATA[r].product===p).reduce((s,r)=>s+authorInRepo(a,r,months),0));t+=`<tr><td>${a}</td>`+vs.map(v=>`<td>${fmt(v)}</td>`).join('')+`<td><b>${fmt(vs.reduce((x,y)=>x+y,0))}</b></td></tr>`;});
+  shown.forEach(a=>{const vs=selProds.map(p=>selRepos().filter(r=>DATA[r].product===p).reduce((s,r)=>s+authorInRepo(a,r,months),0));t+=`<tr><td>${a}</td>`+vs.map(v=>`<td>${fmt(v)}</td>`).join('')+`<td><b>${fmt(vs.reduce((x,y)=>x+y,0))}</b></td></tr>`;});
   t+='</tbody>';document.getElementById('tbl').innerHTML=t;
 }
 
