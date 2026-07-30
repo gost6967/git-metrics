@@ -51,6 +51,14 @@
   .repobox{border:1px solid var(--line);border-radius:9px;background:var(--panel);padding:8px 10px;max-height:320px;overflow-y:auto}
   .rrow{display:flex;align-items:center;gap:8px;padding:3px 2px;font-size:12.5px}
   .rrow .layer{color:var(--muted);font-size:11px;margin-left:auto;text-align:right}
+  .rslider{position:relative;height:26px;margin-top:2px}
+  .rslider .rtrack{position:absolute;top:11px;left:0;right:0;height:4px;background:var(--line);border-radius:2px}
+  .rslider .rfill{position:absolute;top:11px;height:4px;background:var(--accent);border-radius:2px}
+  .rslider input[type=range]{position:absolute;top:0;left:0;width:100%;height:26px;margin:0;background:none;pointer-events:none;-webkit-appearance:none;appearance:none}
+  .rslider input[type=range]::-webkit-slider-runnable-track{background:none;border:none}
+  .rslider input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:16px;height:16px;border-radius:50%;background:var(--accent);border:2px solid var(--bg);cursor:pointer;pointer-events:auto}
+  .rslider input[type=range]::-moz-range-track{background:none;border:none}
+  .rslider input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:var(--accent);border:2px solid var(--bg);cursor:pointer;pointer-events:auto}
   /* ── 반응형 ── */
   @media (max-width:900px){
     .wrap{grid-template-columns:1fr;min-height:0}
@@ -106,8 +114,19 @@
         <option value="files">변경 파일 수</option>
       </select>
     </div>
-    <div class="grp"><label>기간</label>
-      <div class="row2"><select id="from" style="flex:1" autocomplete="off"></select><span class="muted">~</span><select id="to" style="flex:1" autocomplete="off"></select></div>
+    <div class="grp"><label>기간 <small class="hint" id="rangeLabel"></small></label>
+      <div class="seg" id="presetSeg" style="margin-bottom:12px">
+        <button class="pill" data-m="1">이번달</button>
+        <button class="pill" data-m="3">3개월</button>
+        <button class="pill" data-m="6">6개월</button>
+        <button class="pill" data-m="12">12개월</button>
+        <button class="pill" data-m="0">전체</button>
+      </div>
+      <div class="rslider" id="rslider">
+        <div class="rtrack"></div><div class="rfill" id="rfill"></div>
+        <input type="range" id="rFrom" min="0" max="0" value="0" step="1" autocomplete="off">
+        <input type="range" id="rTo" min="0" max="0" value="0" step="1" autocomplete="off">
+      </div>
     </div>
     <div class="grp" id="groupGrp"><label>비교 그룹 기준</label>
       <div class="seg" id="groupSeg">
@@ -324,12 +343,18 @@ function render(){
 }
 
 // init
-function initMonths(){const m=allMonths();const DEF="2025-07";state.from=m.includes(DEF)?DEF:m[0];state.to=m[m.length-1];const fs=document.getElementById('from'),ts=document.getElementById('to');m.forEach(x=>{fs.add(new Option(x,x));ts.add(new Option(x,x));});fs.value=state.from;ts.value=state.to;document.getElementById('metric').value=state.metric;}
+const MS=allMonths();
+function initMonths(){const DEF="2025-07";state.from=MS.includes(DEF)?DEF:MS[0];state.to=MS[MS.length-1];const rf=document.getElementById('rFrom'),rt=document.getElementById('rTo');rf.max=rt.max=MS.length-1;syncSlider();document.getElementById('metric').value=state.metric;}
+function syncSlider(){const rf=document.getElementById('rFrom'),rt=document.getElementById('rTo');rf.value=MS.indexOf(state.from);rt.value=MS.indexOf(state.to);updateRangeUI();}
+function updateRangeUI(){const n=(MS.length-1)||1;const a=MS.indexOf(state.from),b=MS.indexOf(state.to);const fill=document.getElementById('rfill');fill.style.left=(a/n*100)+'%';fill.style.width=((b-a)/n*100)+'%';document.getElementById('rangeLabel').textContent=state.from+' ~ '+state.to+' ('+(b-a+1)+'개월)';}
+function onSlide(which){const rf=document.getElementById('rFrom'),rt=document.getElementById('rTo');if(which==='from'&&+rf.value>+rt.value)rf.value=rt.value;if(which==='to'&&+rt.value<+rf.value)rt.value=rf.value;state.from=MS[+rf.value];state.to=MS[+rt.value];updateRangeUI();document.querySelectorAll('#presetSeg button').forEach(x=>x.classList.remove('on'));render();}
+function preset(m,btn){const n=MS.length,to=n-1,from=(m<=0)?0:Math.max(0,n-m);state.from=MS[from];state.to=MS[to];syncSlider();document.querySelectorAll('#presetSeg button').forEach(x=>x.classList.remove('on'));if(btn)btn.classList.add('on');render();}
 initMonths();
 document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('on'));b.classList.add('on');state.tab=b.dataset.t;render();});
 document.getElementById('metric').onchange=e=>{state.metric=e.target.value;render();};
-document.getElementById('from').onchange=e=>{state.from=e.target.value;render();};
-document.getElementById('to').onchange=e=>{state.to=e.target.value;render();};
+document.getElementById('rFrom').oninput=()=>onSlide('from');
+document.getElementById('rTo').oninput=()=>onSlide('to');
+document.querySelectorAll('#presetSeg button').forEach(b=>b.onclick=()=>preset(+b.dataset.m,b));
 document.getElementById('noBot').onchange=e=>{state.noBot=e.target.checked;render();};
 document.getElementById('rAll').onclick=()=>{state.sel=new Set(REPOS);render();};
 document.getElementById('rNone').onclick=()=>{state.sel=new Set();render();};
@@ -339,7 +364,7 @@ function seg(id,key){document.getElementById(id).querySelectorAll('button').forE
 seg('chartSeg','chart');seg('groupSeg','group');
 window.addEventListener('resize',render);
 // guard against browser form-value restoration on reload/bfcache: snap selects back to state
-window.addEventListener('pageshow',()=>{const m=document.getElementById('metric');if(m.value!==state.metric){m.value=state.metric;}const f=document.getElementById('from'),t=document.getElementById('to');if(f.value!==state.from)f.value=state.from;if(t.value!==state.to)t.value=state.to;render();});
+window.addEventListener('pageshow',()=>{const m=document.getElementById('metric');if(m.value!==state.metric){m.value=state.metric;}syncSlider();render();});
 render();
 }
 </script>
