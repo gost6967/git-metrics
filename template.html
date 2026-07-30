@@ -174,7 +174,7 @@ const PRODUCT_COLOR={"남도마켓":"#5b9dff","복지몰":"#4ade80"};
 products.forEach((p,i)=>{if(!PRODUCT_COLOR[p])PRODUCT_COLOR[p]=PALETTE[(i+2)%PALETTE.length];});
 const cats=[...new Set(REPOS.map(r=>DATA[r].cat))];
 const catColor={};cats.forEach((c,i)=>catColor[c]=PALETTE[i%PALETTE.length]);
-const state={tab:"repo",metric:"churn",group:"repo",chart:"line",from:null,to:null,noBot:true,sel:new Set(REPOS),showAllRanks:false};
+const state={tab:"repo",metric:"churn",group:"repo",chart:"line",from:null,to:null,noBot:true,sel:new Set(REPOS.filter(r=>DATA[r].cat!=='문서/공통')),showAllRanks:false};
 const RANK_TOP=3; // 기본 노출 순위 (그 이후는 '상세 보기')
 
 function allMonths(){const s=new Set();REPOS.forEach(r=>DATA[r].records.forEach(x=>s.add(x.month)));return [...s].sort();}
