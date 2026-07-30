@@ -77,10 +77,8 @@
     .tabs button{padding:8px 12px;font-size:13px}
     .card{padding:12px 12px}
   }
-  /* 모바일: 차트(비교·통합)는 숨기고 KPI·순위·표만 표시 */
-  @media (max-width:640px){
-    #chartCard, #totalCard{display:none !important}
-  }
+  /* 차트(비교·통합) 숨김 — KPI·순위·표만 표시 */
+  #chartCard, #totalCard{display:none !important}
 </style>
 </head>
 <body>
@@ -135,7 +133,7 @@
         <button data-g="layer">카테고리별</button>
       </div>
     </div>
-    <div class="grp"><label>차트 종류</label>
+    <div class="grp" style="display:none"><label>차트 종류</label>
       <div class="seg" id="chartSeg"><button data-c="line" class="on">선</button><button data-c="bar">막대</button></div>
     </div>
     <div class="grp"><label>옵션</label>
