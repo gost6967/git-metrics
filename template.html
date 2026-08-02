@@ -114,6 +114,7 @@
     <div class="grp"><label>기간 <small class="hint" id="rangeLabel"></small></label>
       <div class="seg" id="presetSeg" style="margin-bottom:12px">
         <button class="pill" data-m="1">이번달</button>
+        <button class="pill" data-prev="1">저번달</button>
         <button class="pill" data-m="3">3개월</button>
         <button class="pill" data-m="6">6개월</button>
         <button class="pill" data-m="12">12개월</button>
@@ -346,12 +347,13 @@ function syncSlider(){const rf=document.getElementById('rFrom'),rt=document.getE
 function updateRangeUI(){const n=(MS.length-1)||1;const a=MS.indexOf(state.from),b=MS.indexOf(state.to);const fill=document.getElementById('rfill');fill.style.left=(a/n*100)+'%';fill.style.width=((b-a)/n*100)+'%';document.getElementById('rangeLabel').textContent=state.from+' ~ '+state.to+' ('+(b-a+1)+'개월)';}
 function onSlide(which){const rf=document.getElementById('rFrom'),rt=document.getElementById('rTo');if(which==='from'&&+rf.value>+rt.value)rf.value=rt.value;if(which==='to'&&+rt.value<+rf.value)rt.value=rf.value;state.from=MS[+rf.value];state.to=MS[+rt.value];updateRangeUI();document.querySelectorAll('#presetSeg button').forEach(x=>x.classList.remove('on'));render();}
 function preset(m,btn){const n=MS.length,to=n-1,from=(m<=0)?0:Math.max(0,n-m);state.from=MS[from];state.to=MS[to];syncSlider();document.querySelectorAll('#presetSeg button').forEach(x=>x.classList.remove('on'));if(btn)btn.classList.add('on');render();}
+function presetPrev(btn){if(MS.length<2)return;const i=MS.length-2;state.from=MS[i];state.to=MS[i];syncSlider();document.querySelectorAll('#presetSeg button').forEach(x=>x.classList.remove('on'));if(btn)btn.classList.add('on');render();}
 initMonths();
 document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('on'));b.classList.add('on');state.tab=b.dataset.t;render();});
 document.getElementById('metric').onchange=e=>{state.metric=e.target.value;render();};
 document.getElementById('rFrom').oninput=()=>onSlide('from');
 document.getElementById('rTo').oninput=()=>onSlide('to');
-document.querySelectorAll('#presetSeg button').forEach(b=>b.onclick=()=>preset(+b.dataset.m,b));
+document.querySelectorAll('#presetSeg button').forEach(b=>b.onclick=()=>{if(b.dataset.prev)presetPrev(b);else preset(+b.dataset.m,b);});
 document.getElementById('noBot').onchange=e=>{state.noBot=e.target.checked;render();};
 document.getElementById('rAll').onclick=()=>{state.sel=new Set(REPOS);render();};
 document.getElementById('rNone').onclick=()=>{state.sel=new Set();render();};
