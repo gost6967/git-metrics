@@ -113,12 +113,15 @@
     </div>
     <div class="grp"><label>기간 <small class="hint" id="rangeLabel"></small></label>
       <div class="seg" id="presetSeg" style="margin-bottom:12px">
-        <button class="pill" data-m="1">이번달</button>
+        <button class="pill" data-prev="0">이번달</button>
         <button class="pill" data-prev="1">1개월전</button>
         <button class="pill" data-prev="2">2개월전</button>
-        <button class="pill" data-m="3">3개월</button>
-        <button class="pill" data-m="6">6개월</button>
-        <button class="pill" data-m="12">12개월</button>
+        <button class="pill" data-prev="3">3개월전</button>
+        <button class="pill" data-prev="4">4개월전</button>
+        <button class="pill" data-prev="5">5개월전</button>
+        <button class="pill" data-prev="6">6개월전</button>
+        <button class="pill" data-m="6">6개월합</button>
+        <button class="pill" data-m="12">1년합</button>
         <button class="pill" data-m="0">전체</button>
       </div>
       <div class="rslider" id="rslider">
@@ -343,7 +346,7 @@ function render(){
 
 // init
 const MS=allMonths();
-function initMonths(){state.to=MS[MS.length-1];state.from=MS[MS.length-1];const rf=document.getElementById('rFrom'),rt=document.getElementById('rTo');rf.max=rt.max=MS.length-1;syncSlider();document.getElementById('metric').value=state.metric;const p=document.querySelector('#presetSeg button[data-m="1"]');if(p)p.classList.add('on');}
+function initMonths(){state.to=MS[MS.length-1];state.from=MS[MS.length-1];const rf=document.getElementById('rFrom'),rt=document.getElementById('rTo');rf.max=rt.max=MS.length-1;syncSlider();document.getElementById('metric').value=state.metric;const p=document.querySelector('#presetSeg button[data-prev="0"]');if(p)p.classList.add('on');}
 function syncSlider(){const rf=document.getElementById('rFrom'),rt=document.getElementById('rTo');rf.value=MS.indexOf(state.from);rt.value=MS.indexOf(state.to);updateRangeUI();}
 function updateRangeUI(){const n=(MS.length-1)||1;const a=MS.indexOf(state.from),b=MS.indexOf(state.to);const fill=document.getElementById('rfill');fill.style.left=(a/n*100)+'%';fill.style.width=((b-a)/n*100)+'%';document.getElementById('rangeLabel').textContent=state.from+' ~ '+state.to+' ('+(b-a+1)+'개월)';}
 function onSlide(which){const rf=document.getElementById('rFrom'),rt=document.getElementById('rTo');if(which==='from'&&+rf.value>+rt.value)rf.value=rt.value;if(which==='to'&&+rt.value<+rf.value)rt.value=rf.value;state.from=MS[+rf.value];state.to=MS[+rt.value];updateRangeUI();document.querySelectorAll('#presetSeg button').forEach(x=>x.classList.remove('on'));render();}
