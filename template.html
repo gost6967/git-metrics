@@ -142,6 +142,7 @@
     </div>
     <div class="grp"><label>옵션</label>
       <label class="chk"><input type="checkbox" id="noBot" checked> 봇 제외</label>
+      <label class="chk"><input type="checkbox" id="onlyDev" checked> 개발자만</label>
     </div>
     <div class="grp"><label>레포 선택 <small class="hint" id="repoCount"></small></label>
       <div class="seg" style="margin-bottom:8px">
@@ -195,13 +196,13 @@ const PRODUCT_COLOR={"남도마켓":"#5b9dff","복지몰":"#4ade80"};
 products.forEach((p,i)=>{if(!PRODUCT_COLOR[p])PRODUCT_COLOR[p]=PALETTE[(i+2)%PALETTE.length];});
 const cats=[...new Set(REPOS.map(r=>DATA[r].cat))];
 const catColor={};cats.forEach((c,i)=>catColor[c]=PALETTE[i%PALETTE.length]);
-const state={tab:"people",metric:"churn",group:"repo",chart:"line",from:null,to:null,noBot:true,sel:new Set(REPOS.filter(r=>DATA[r].cat!=='문서/공통')),showAllRanks:false};
+const state={tab:"people",metric:"churn",group:"repo",chart:"line",from:null,to:null,noBot:true,onlyDev:true,sel:new Set(REPOS.filter(r=>DATA[r].cat!=='문서/공통')),showAllRanks:false};
 const RANK_TOP=3; // 기본 노출 순위 (그 이후는 '상세 보기')
 
 function allMonths(){const s=new Set();REPOS.forEach(r=>DATA[r].records.forEach(x=>s.add(x.month)));return [...s].sort();}
 function monthsInRange(){const m=allMonths();const i=m.indexOf(state.from),j=m.indexOf(state.to);return m.slice(i<0?0:i,(j<0?m.length-1:j)+1);}
 function fmt(n){return (n||0).toLocaleString('ko-KR');}
-function keep(r){return state.noBot?!r.bot:true;}
+function keep(r){return (state.noBot?!r.bot:true)&&(state.onlyDev?!r.nonDev:true);}
 function selRepos(){return REPOS.filter(r=>state.sel.has(r));}
 function repoMonth(repo,month){let s=0;for(const r of DATA[repo].records)if(r.month===month&&keep(r))s+=r[state.metric]||0;return s;}
 function reposMonth(repos,month){let s=0;repos.forEach(r=>s+=repoMonth(r,month));return s;}
@@ -359,6 +360,7 @@ document.getElementById('rFrom').oninput=()=>onSlide('from');
 document.getElementById('rTo').oninput=()=>onSlide('to');
 document.querySelectorAll('#presetSeg button').forEach(b=>b.onclick=()=>{if(b.dataset.prev)presetPrev(+b.dataset.prev,b);else preset(+b.dataset.m,b);});
 document.getElementById('noBot').onchange=e=>{state.noBot=e.target.checked;render();};
+document.getElementById('onlyDev').onchange=e=>{state.onlyDev=e.target.checked;render();};
 document.getElementById('rAll').onclick=()=>{state.sel=new Set(REPOS);render();};
 document.getElementById('rNone').onclick=()=>{state.sel=new Set();render();};
 document.getElementById('rMarket').onclick=()=>{state.sel=new Set(REPOS.filter(r=>DATA[r].product==='남도마켓'));render();};
