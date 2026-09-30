@@ -13,11 +13,12 @@
 | clone 토큰 | 아래 A 또는 B | 27개(비공개) 레포 clone용 |
 
 ### clone 토큰 — 둘 중 하나 선택
-**A. Classic PAT 1개 (간단)** — `repo` scope, NDMARKET·fashionon-repo 두 org 모두 접근 가능한 계정.
+**A. Classic PAT 1개 (간단)** — `repo` scope, nd-market·NDMARKET·fashionon-repo 세 곳 모두 접근 가능한 계정. (현재 사용 중)
 - 시크릿 이름: `REPOS_TOKEN`
 
 **B. Fine-grained PAT 2개 (권한 최소화, 더 안전)** — fine-grained는 소유자 1명만 지정 가능하므로 org별로 1개씩.
-- `REPOS_TOKEN_ND` : owner=NDMARKET, Repository access=대상 레포, **Contents: Read-only**
+- `REPOS_TOKEN_ND` : owner=nd-market, Repository access=대상 레포, **Contents: Read-only**
+- ⚠️ NDMARKET(개인계정)에 남은 4개(pos·qrcode_landing·musangsa-nextjs·nd-stocklive)는 이 토큰으로 못 읽으니 `REPOS_TOKEN` 폴백이 필요.
 - `REPOS_TOKEN_FO` : owner=fashionon-repo, 동일 권한
 - ⚠️ org가 fine-grained PAT를 허용해야 하고 org owner 승인이 필요할 수 있음.
 - 워크플로는 org별로 토큰을 골라 쓰고, 없으면 `REPOS_TOKEN`으로 폴백.

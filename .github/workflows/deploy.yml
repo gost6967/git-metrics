@@ -27,7 +27,7 @@ jobs:
         env:
           # A) classic PAT 하나(REPOS_TOKEN) 또는 B) org별 fine-grained 2개
           TOKEN_ALL: ${{ secrets.REPOS_TOKEN }}
-          TOKEN_ND:  ${{ secrets.REPOS_TOKEN_ND }}   # NDMARKET org용 (fine-grained)
+          TOKEN_ND:  ${{ secrets.REPOS_TOKEN_ND }}   # nd-market org용 (fine-grained)
           TOKEN_FO:  ${{ secrets.REPOS_TOKEN_FO }}   # fashionon-repo org용 (fine-grained)
         run: |
           set -e
