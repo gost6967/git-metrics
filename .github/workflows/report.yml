@@ -4,8 +4,9 @@ name: Work report (Slack)
 # 이미 보고한 커밋 기록(report/.state)은 Actions 캐시로만 보존한다.
 on:
   schedule:
-    - cron: '0 9 * * 1-5'   # 일간: 평일 18:00 KST
-    - cron: '0 0 * * 5'     # 주간: 금요일 09:00 KST
+    # 정각은 GitHub 예약 실행이 몰려 지연되기 쉬워 10분 앞당긴다. 시각을 바꾸면 report.mjs DAILY_AT/WEEKLY_AT도 같이 바꾼다.
+    - cron: '50 8 * * 1-5'  # 일간: 평일 17:50 KST
+    - cron: '50 23 * * 0-4' # 주간: 평일 08:50 KST (UTC 일~목 23:50) — 그 주 마지막 근무일에만 게시 (보통 금, 금 휴무면 목)
   workflow_dispatch:
     inputs:
       mode:
@@ -49,8 +50,9 @@ jobs:
           IN_DATE: ${{ github.event.inputs.date }}
         run: |
           if [ "$EVENT" = "schedule" ]; then
-            if [ "$SCHEDULE" = "0 0 * * 5" ]; then echo "mode=weekly" >> "$GITHUB_OUTPUT"; else echo "mode=daily" >> "$GITHUB_OUTPUT"; fi
+            if [ "$SCHEDULE" = "50 23 * * 0-4" ]; then echo "mode=weekly" >> "$GITHUB_OUTPUT"; else echo "mode=daily" >> "$GITHUB_OUTPUT"; fi
             echo "post=true" >> "$GITHUB_OUTPUT"
+            echo "skip_holiday=true" >> "$GITHUB_OUTPUT"
           else
             echo "mode=$IN_MODE" >> "$GITHUB_OUTPUT"
             echo "post=$IN_POST" >> "$GITHUB_OUTPUT"
@@ -99,6 +101,7 @@ jobs:
           args="--mode ${{ steps.mode.outputs.mode }}"
           [ -n "${{ steps.mode.outputs.date }}" ] && args="$args --date ${{ steps.mode.outputs.date }}"
           [ "${{ steps.mode.outputs.post }}" = "true" ] && args="$args --post"
+          [ "${{ steps.mode.outputs.skip_holiday }}" = "true" ] && args="$args --skip-holiday"
           node report/report.mjs $args
 
       - name: Save reported-commit state

@@ -1,11 +1,15 @@
-// 사용법: node report/report.mjs --mode daily|weekly [--date YYYY-MM-DD] [--fetch] [--post] [--plain]
-//   daily : 직전 평일 18:00 ~ 당일 18:00 (KST)
-//   weekly: 7일 전 09:00 ~ 당일 09:00 (KST, 금요일 실행 기준)
+// 사용법: node report/report.mjs --mode daily|weekly [--date YYYY-MM-DD] [--fetch] [--post] [--plain] [--skip-holiday]
+//   daily : 직전 근무일 17:50 ~ 당일 17:50 (KST, 주말·공휴일은 근무일에서 제외)
+//   weekly: 지난 주간 보고일 08:50 ~ 당일 08:50 (KST). 보고일 = 그 주 마지막 근무일(보통 금, 금이 휴무면 목 …)
+//   경계 시각 = 예약 실행 시각. 실행이 늦게 시작해도 경계 이후 커밋은 다음 보고로 넘어가 빠지거나 겹치지 않는다.
+//   --skip-holiday: 당일이 보고일이 아니면(일간: 주말·공휴일, 주간: 그 주 마지막 근무일이 아님) 게시하지 않고 끝낸다.
+//                   예약 실행에서만 쓴다 — 주간은 평일 매일 예약하고 이 판정으로 하루만 보낸다.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { collect } from './collect.mjs';
 import { summarize, plain } from './summarize.mjs';
+import { loadHolidays } from './holidays.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 // 공개 레포라 보고서 원문·상태는 커밋하지 않는다 (둘 다 gitignore, CI 상태는 Actions 캐시로 보존)
@@ -14,7 +18,7 @@ const STATE = path.join(here, '.state', 'seen.json');
 const CI = !!process.env.CI;
 
 function parseArgs(argv) {
-  const a = { mode: 'daily', date: null, fetch: false, post: false, plain: false };
+  const a = { mode: 'daily', date: null, fetch: false, post: false, plain: false, skipHoliday: false };
   for (let i = 0; i < argv.length; i++) {
     const k = argv[i];
     if (k === '--mode') a.mode = argv[++i];
@@ -22,6 +26,7 @@ function parseArgs(argv) {
     else if (k === '--fetch') a.fetch = true;
     else if (k === '--post') a.post = true;
     else if (k === '--plain') a.plain = true;
+    else if (k === '--skip-holiday') a.skipHoliday = true;
   }
   if (!['daily', 'weekly'].includes(a.mode)) throw new Error('--mode 는 daily 또는 weekly');
   return a;
@@ -34,23 +39,44 @@ const todayKst = () => new Date(Date.now() + 9 * 3600000).toISOString().slice(0,
 const addDays = (ymd, n) => new Date(Date.parse(ymd + 'T00:00:00Z') + n * DAY).toISOString().slice(0, 10);
 const weekday = (ymd) => new Date(ymd + 'T00:00:00Z').getUTCDay();
 const label = (ymd) => `${+ymd.slice(5, 7)}/${+ymd.slice(8, 10)}(${WD[weekday(ymd)]})`;
-const iso = (ymd, hh) => `${ymd}T${hh}:00:00+09:00`;
+const iso = (ymd, hm) => `${ymd}T${hm}:00+09:00`;
 
-function period(mode, date) {
+const DAILY_AT = '17:50';
+const WEEKLY_AT = '08:50';
+
+// 주말·공휴일
+const isOff = (ymd, holidays) => [0, 6].includes(weekday(ymd)) || holidays.has(ymd);
+
+// date 가 속한 주(월~금)의 주간 보고일 = 마지막 근무일. 한 주 전체가 휴무면 null.
+function weeklyReportDay(date, holidays) {
+  const monday = addDays(date, -((weekday(date) + 6) % 7));
+  for (let d = addDays(monday, 4); d >= monday; d = addDays(d, -1)) if (!isOff(d, holidays)) return d;
+  return null;
+}
+
+// 예약 실행에서 오늘 보낼 날인지
+function isReportDay(mode, date, holidays) {
+  return mode === 'daily' ? !isOff(date, holidays) : weeklyReportDay(date, holidays) === date;
+}
+
+function period(mode, date, holidays) {
   if (mode === 'daily') {
     let prev = addDays(date, -1);
-    while ([0, 6].includes(weekday(prev))) prev = addDays(prev, -1); // 월요일은 금요일 18시부터
+    while (isOff(prev, holidays)) prev = addDays(prev, -1); // 월요일·연휴 다음 날은 직전 근무일부터
     return {
-      since: iso(prev, '18'), until: iso(date, '18'),
+      since: iso(prev, DAILY_AT), until: iso(date, DAILY_AT),
       title: `일간 개발 업무 보고 – ${label(date)}`,
-      period: `${label(prev)} 18:00 ~ ${label(date)} 18:00 · 원격 저장소에 올라온 커밋 기준`,
+      period: `${label(prev)} ${DAILY_AT} ~ ${label(date)} ${DAILY_AT} · 원격 저장소에 올라온 커밋 기준`,
     };
   }
-  const from = addDays(date, -7);
+  // 직전 주간 보고일. 한 주 전체가 휴무였다면 그 주는 보고가 없으므로 더 거슬러 올라가 합친다.
+  let from = null;
+  for (let w = 1; !from && w <= 8; w++) from = weeklyReportDay(addDays(date, -7 * w), holidays);
+  from ??= addDays(date, -7);
   return {
-    since: iso(from, '09'), until: iso(date, '09'),
+    since: iso(from, WEEKLY_AT), until: iso(date, WEEKLY_AT),
     title: `주간 개발 업무 보고 – ${label(from)} ~ ${label(date)}`,
-    period: `${label(from)} 09:00 ~ ${label(date)} 09:00 · 원격 저장소에 올라온 커밋 기준`,
+    period: `${label(from)} ${WEEKLY_AT} ~ ${label(date)} ${WEEKLY_AT} · 원격 저장소에 올라온 커밋 기준`,
   };
 }
 
@@ -84,7 +110,12 @@ async function postSlack(mode, text) {
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   const date = args.date || todayKst();
-  const p = period(args.mode, date);
+  const holidays = (await loadHolidays()) ?? new Map();
+  if (args.skipHoliday && !isReportDay(args.mode, date, holidays)) {
+    console.log(`${date} ${holidays.get(date) ?? ''} → ${args.mode} 보고일이 아니라 게시하지 않음`);
+    return;
+  }
+  const p = period(args.mode, date, holidays);
   console.log(`[${args.mode}] ${p.since} ~ ${p.until}`);
 
   const state = loadState();
