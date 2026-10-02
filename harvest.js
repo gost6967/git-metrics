@@ -165,4 +165,4 @@ async function harvest({ fetch = false } = {}) {
 // CI clone용: [{ key, slug }] 목록
 function repoList() { return REPOS.map(([key]) => ({ key, slug: slugOf(key) })); }
 
-module.exports = { harvest, REPOS, MIN_MONTH, slugOf, repoList };
+module.exports = { harvest, REPOS, MIN_MONTH, slugOf, repoList, canon };

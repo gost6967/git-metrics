@@ -45,3 +45,30 @@ npm run build:fetch    # git fetch 후 최신으로 생성
 ## 레포 추가
 `harvest.js`의 `REPOS` 배열에 `[이름, 상대경로, 브랜치, 제품, 레이어, 카테고리]` 한 줄 추가 → 서버 새로고침이면 반영.
 작성자 통합/봇은 `EMAIL_MAP` 참조.
+
+## 업무 보고 (슬랙, 일간·주간)
+같은 레포 목록·작성자 통합 규칙으로 팀원 전체의 커밋을 모아 비개발자용 업무 보고를 슬랙에 올린다.
+워크플로: `.github/workflows/report.yml`, 코드: `report/`.
+
+| 보고 | 실행 | 집계 기간 (KST) |
+|---|---|---|
+| 일간 | 평일 18:00 | 직전 평일 18:00 ~ 당일 18:00 (월요일은 금 18:00부터) |
+| 주간 | 금 09:00 | 지난 금 09:00 ~ 이번 금 09:00 |
+
+- 모든 원격 브랜치의 커밋(병합 제외)을 사람별로 묶는다. `main`/`master`에 안 들어간 작업은 "(작업 중)"으로 표시하고, `chore(release)`는 배포 섹션으로 따로 모은다.
+- `report/summarize.mjs`가 Claude Agent SDK로 요약한다. 구독 토큰을 쓰므로 토큰 발급자의 구독 사용량(주간 한도)에서 차감되고 추가 요금은 없다. 토큰이 없거나 한도 초과 등으로 실패하면 커밋 제목 나열로 대체한다. 모델을 고정하려면 Actions 변수 `REPORT_MODEL`(예: `opus`)을 둔다.
+- 리베이스로 같은 커밋이 다시 잡히지 않도록, 보고한 커밋은 `report/.state/seen.json`에 기록해 제외한다. CI에서는 Actions 캐시로 보존한다.
+- **공개 레포라** 보고서 원문은 커밋하지도 CI 로그에 찍지도 않는다. 슬랙이 유일한 보관처다.
+
+추가 시크릿 (기존 `REPOS_TOKEN`·`AUTHOR_MAP_JSON`은 그대로 공유):
+- `CLAUDE_CODE_OAUTH_TOKEN`: 요약용 구독 토큰. 터미널에서 `claude setup-token` 실행 → 브라우저 로그인 → 출력되는 `sk-ant-oat01-...` 값. 이 값을 `ANTHROPIC_API_KEY`에 넣으면 401로 실패한다.
+- `SLACK_WEBHOOK_URL`: 슬랙 Incoming Webhook. 일간·주간을 다른 채널로 보내려면 `SLACK_WEBHOOK_URL_DAILY`/`_WEEKLY` (있으면 우선)
+
+```bash
+npm install
+npm run report:daily                                   # 오늘 일간 (화면 출력만, 로그인된 Claude Code 세션으로 요약)
+node report/report.mjs --mode weekly --date 2026-10-02 --plain   # 요약 없이 커밋 나열
+node report/report.mjs --mode daily --fetch            # 로컬 레포 fetch 후 집계
+```
+`--post`를 붙여야 슬랙에 게시하고 상태를 갱신한다. 결과는 `report/out/`에 저장된다(gitignore).
+수동 실행: Actions → Work report (Slack) → Run workflow (mode·date·post).

@@ -4,3 +4,5 @@ docs/
 authors.local.json
 .DS_Store
 .idea/
+report/out/
+report/.state/

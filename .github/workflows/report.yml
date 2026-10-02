@@ -1,0 +1,109 @@
+name: Work report (Slack)
+
+# 공개 레포 주의: 보고서 원문은 커밋·로그에 남기지 않고 슬랙으로만 보낸다.
+# 이미 보고한 커밋 기록(report/.state)은 Actions 캐시로만 보존한다.
+on:
+  schedule:
+    - cron: '0 9 * * 1-5'   # 일간: 평일 18:00 KST
+    - cron: '0 0 * * 5'     # 주간: 금요일 09:00 KST
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: daily | weekly
+        type: choice
+        options: [daily, weekly]
+        default: daily
+      date:
+        description: 기준 날짜 YYYY-MM-DD (비우면 오늘 KST)
+        required: false
+      post:
+        description: 슬랙에 게시 (끄면 집계 건수만 확인)
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: work-report
+  cancel-in-progress: false
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+
+      - name: Resolve mode
+        id: mode
+        env:
+          EVENT: ${{ github.event_name }}
+          SCHEDULE: ${{ github.event.schedule }}
+          IN_MODE: ${{ github.event.inputs.mode }}
+          IN_POST: ${{ github.event.inputs.post }}
+          IN_DATE: ${{ github.event.inputs.date }}
+        run: |
+          if [ "$EVENT" = "schedule" ]; then
+            if [ "$SCHEDULE" = "0 0 * * 5" ]; then echo "mode=weekly" >> "$GITHUB_OUTPUT"; else echo "mode=daily" >> "$GITHUB_OUTPUT"; fi
+            echo "post=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "mode=$IN_MODE" >> "$GITHUB_OUTPUT"
+            echo "post=$IN_POST" >> "$GITHUB_OUTPUT"
+            if [ -n "$IN_DATE" ]; then
+              [[ "$IN_DATE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || { echo "date 형식 오류"; exit 1; }
+              echo "date=$IN_DATE" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+
+      - name: Clone target repos (최근 21일, 전체 브랜치)
+        env:
+          TOKEN_ALL: ${{ secrets.REPOS_TOKEN }}
+          TOKEN_ND:  ${{ secrets.REPOS_TOKEN_ND }}
+          TOKEN_FO:  ${{ secrets.REPOS_TOKEN_FO }}
+        run: |
+          mkdir -p _repos
+          since=$(date -u -d '21 days ago' +%Y-%m-%d)
+          node -e "require('./harvest').repoList().forEach(r=>console.log(r.key+' '+r.slug))" | while read key slug; do
+            case "$slug" in
+              fashionon-repo/*) TOKEN="${TOKEN_FO:-$TOKEN_ALL}" ;;
+              *)                TOKEN="${TOKEN_ND:-$TOKEN_ALL}" ;;
+            esac
+            url="https://x-access-token:${TOKEN}@github.com/${slug}.git"
+            git clone --quiet --no-tags --no-single-branch --shallow-since="$since" "$url" "_repos/$key" 2>/dev/null \
+              || git clone --quiet --no-tags --no-single-branch --depth 200 "$url" "_repos/$key" 2>/dev/null \
+              || echo "  ! skip $slug (권한/미존재)"
+          done
+
+      - name: Restore reported-commit state
+        uses: actions/cache/restore@v4
+        with:
+          path: report/.state
+          key: work-report-state-${{ github.run_id }}
+          restore-keys: work-report-state-
+
+      - name: Build & post report
+        env:
+          REPO_BASE: _repos
+          AUTHOR_MAP_JSON: ${{ secrets.AUTHOR_MAP_JSON }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          REPORT_MODEL: ${{ vars.REPORT_MODEL }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_URL_DAILY: ${{ secrets.SLACK_WEBHOOK_URL_DAILY }}
+          SLACK_WEBHOOK_URL_WEEKLY: ${{ secrets.SLACK_WEBHOOK_URL_WEEKLY }}
+        run: |
+          args="--mode ${{ steps.mode.outputs.mode }}"
+          [ -n "${{ steps.mode.outputs.date }}" ] && args="$args --date ${{ steps.mode.outputs.date }}"
+          [ "${{ steps.mode.outputs.post }}" = "true" ] && args="$args --post"
+          node report/report.mjs $args
+
+      - name: Save reported-commit state
+        if: steps.mode.outputs.post == 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: report/.state
+          key: work-report-state-${{ github.run_id }}
