@@ -124,7 +124,12 @@ async function main() {
   const data = await collect({ since: p.since, until: p.until, fetch: args.fetch, exclude, staleDays });
   if (data.missing.length) console.warn('없는 레포(건너뜀):', data.missing.join(', '));
   const total = data.people.reduce((n, x) => n + x.count, 0);
-  console.log(`커밋 ${total}건 · ${data.people.length}명 · 릴리스 ${data.releases.length}건`);
+  console.log(`커밋 ${total}건 · ${data.people.length}명 · 릴리스 ${data.releases.length}건 (이미 보고 ${data.excluded}건 제외)`);
+  // 수동 실행 뒤 늦게 돈 예약 실행처럼, 새 커밋 없이 이미 보고한 것만 있으면 빈 보고를 다시 올리지 않는다
+  if (args.post && !data.keys.length && data.excluded) {
+    console.log('새로 보고할 커밋이 없어 게시하지 않음');
+    return;
+  }
 
   const input = { title: p.title, period: p.period, mode: args.mode, people: data.people, releases: data.releases };
   const text = args.plain ? plain(input) : await summarize(input);

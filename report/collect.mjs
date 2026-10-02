@@ -53,7 +53,7 @@ async function collectRepo([key, rel, , product, layer], { since, until, fetch, 
 
   const range = [`--since=${since}`, `--until=${until}`];
   const all = parseLog(await git(['log', '--remotes', '--no-merges', ...range, FMT], cwd));
-  if (!all.length) return { key, product, layer, commits: [] };
+  if (!all.length) return { key, product, layer, commits: [], excluded: 0 };
 
   // main/master 에 들어간 것 = 배포 반영. 스쿼시로 해시가 바뀌므로 제목으로도 대조.
   const ref = await mainRef(cwd);
@@ -64,17 +64,19 @@ async function collectRepo([key, rel, , product, layer], { since, until, fetch, 
   // 리베이스로 커밋 날짜만 갱신된 오래된 작업은 제외 (작성일이 기간 시작보다 staleDays 이상 이전)
   const staleBefore = Date.parse(since) - staleDays * 86400000;
   const seen = new Map();
+  let excluded = 0;
   for (const c of all) {
     const [author, bot] = canon(c.email, c.name);
     const subject = normSubject(c.subject);
     const k = key + '\x1f' + author + '\x1f' + subject;
-    if (exclude.has(k) || Date.parse(c.authored) < staleBefore) continue;
+    if (exclude.has(k)) { excluded++; continue; }
+    if (Date.parse(c.authored) < staleBefore) continue;
     const deployed = mainHashes.has(c.hash) || mainSubjects.has(subject);
     const prev = seen.get(k);
     if (prev) { prev.deployed ||= deployed; continue; }
     seen.set(k, { key: k, author, bot, subject, date: c.date, deployed });
   }
-  return { key, product, layer, commits: [...seen.values()] };
+  return { key, product, layer, commits: [...seen.values()], excluded };
 }
 
 // exclude: 이전 보고에 이미 실린 커밋 키(레포·작성자·제목). 리베이스로 날짜가 바뀐 커밋이 다시 실리는 것을 막는다.
@@ -85,9 +87,11 @@ export async function collect({ since, until, fetch = false, exclude = new Set()
   const releases = [];
   const missing = [];
   const keys = [];
+  let excluded = 0;
 
   for (const r of results) {
     if (r.missing) { missing.push(r.key); continue; }
+    excluded += r.excluded;
     for (const c of r.commits) {
       keys.push(c.key);
       if (RELEASE_RE.test(c.subject)) {
@@ -108,5 +112,5 @@ export async function collect({ since, until, fetch = false, exclude = new Set()
     .map((p) => ({ ...p, repos: [...p.repos.values()].sort((a, b) => b.commits.length - a.commits.length) }))
     .sort((a, b) => b.count - a.count);
   releases.sort((a, b) => a.date.localeCompare(b.date));
-  return { people: list, releases, keys, missing };
+  return { people: list, releases, keys, excluded, missing };
 }
