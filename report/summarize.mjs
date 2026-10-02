@@ -31,6 +31,10 @@ export async function summarize(input) {
   if (!input.people.length && !input.releases.length) {
     return `*📋 ${input.title}*\n_${input.period}_\n\n이 기간에 올라온 커밋이 없습니다.`;
   }
+  // 터미널에서 복사하며 줄바꿈이 섞여 등록되는 경우가 있어 공백을 제거해 넘긴다
+  if (process.env.CLAUDE_CODE_OAUTH_TOKEN) {
+    process.env.CLAUDE_CODE_OAUTH_TOKEN = process.env.CLAUDE_CODE_OAUTH_TOKEN.replace(/\s+/g, '');
+  }
   if (process.env.CI && !process.env.CLAUDE_CODE_OAUTH_TOKEN) {
     console.warn('CLAUDE_CODE_OAUTH_TOKEN 없음 → 커밋 제목 나열로 대체');
     return plain(input);
