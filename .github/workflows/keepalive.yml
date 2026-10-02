@@ -1,0 +1,25 @@
+name: Keepalive (예약 실행 60일 중지 방지)
+
+# 공개 레포는 60일간 활동이 없으면 GitHub이 예약 워크플로를 자동 중지한다.
+# 이 레포는 리포트·업무 보고 모두 커밋을 만들지 않으므로, 매달 예약 워크플로를 API로 다시 활성화해
+# 비활성 타이머를 초기화한다 (빈 커밋 없이). 자기 자신도 함께 활성화한다.
+on:
+  schedule:
+    - cron: '17 3 1 * *'   # 매월 1일 12:17 KST
+  workflow_dispatch: {}
+
+permissions:
+  actions: write
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Re-enable scheduled workflows
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          for wf in deploy.yml report.yml keepalive.yml; do
+            gh workflow enable "$wf" -R "$REPO" && echo "enabled $wf"
+          done

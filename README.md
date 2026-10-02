@@ -75,3 +75,7 @@ node report/report.mjs --mode daily --fetch            # 로컬 레포 fetch 후
 ```
 `--post`를 붙여야 슬랙에 게시하고 상태를 갱신한다. 결과는 `report/out/`에 저장된다(gitignore).
 수동 실행: Actions → Work report (Slack) → Run workflow (mode·date·post).
+
+## 예약 실행 60일 중지 방지
+공개 레포는 60일간 활동이 없으면 예약 워크플로가 자동 중지된다. 이 레포는 커밋을 만들지 않으므로
+`.github/workflows/keepalive.yml`이 매월 1일 `deploy.yml`·`report.yml`·자기 자신을 API로 다시 활성화해 타이머를 초기화한다(빈 커밋 없음).
