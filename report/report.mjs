@@ -44,6 +44,15 @@ const iso = (ymd, hm) => `${ymd}T${hm}:00+09:00`;
 const DAILY_AT = '17:50';
 const WEEKLY_AT = '08:50';
 
+// 예약 실행의 기준 날짜. GitHub 예약 실행은 몇 시간씩 늦게 시작하기도 해서(10/2 17:50 회차가 10/3 00:03에 시작)
+// 실행 시각이 아니라 '가장 최근에 지난 예약 시각'의 날짜를 쓴다. 24시간 미만 지연까지 같은 회차로 본다.
+function slotDate(mode) {
+  const nowKst = new Date(Date.now() + 9 * 3600000).toISOString(); // YYYY-MM-DDTHH:MM…
+  const at = mode === 'daily' ? DAILY_AT : WEEKLY_AT;
+  const today = nowKst.slice(0, 10);
+  return nowKst.slice(11, 16) >= at ? today : addDays(today, -1);
+}
+
 // 주말·공휴일
 const isOff = (ymd, holidays) => [0, 6].includes(weekday(ymd)) || holidays.has(ymd);
 
@@ -109,7 +118,7 @@ async function postSlack(mode, text) {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
-  const date = args.date || todayKst();
+  const date = args.date || (args.skipHoliday ? slotDate(args.mode) : todayKst());
   const holidays = (await loadHolidays()) ?? new Map();
   if (args.skipHoliday && !isReportDay(args.mode, date, holidays)) {
     console.log(`${date} ${holidays.get(date) ?? ''} → ${args.mode} 보고일이 아니라 게시하지 않음`);
