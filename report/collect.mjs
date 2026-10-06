@@ -53,16 +53,27 @@ async function collectRepo([key, rel, , product, layer], { since, until, fetch, 
 
   const range = [`--since=${since}`, `--until=${until}`];
   const all = parseLog(await git(['log', '--remotes', '--no-merges', ...range, FMT], cwd));
-  if (!all.length) return { key, product, layer, commits: [], excluded: 0 };
 
-  // main/master 에 들어간 것 = 배포 반영. 스쿼시로 해시가 바뀌므로 제목으로도 대조.
-  const ref = await mainRef(cwd);
-  const onMain = ref ? parseLog(await git(['log', ref, '--no-merges', ...range, FMT], cwd)) : [];
-  const mainHashes = new Set(onMain.map((c) => c.hash));
-  const mainSubjects = new Set(onMain.map((c) => normSubject(c.subject)));
+  // 커밋 시각은 기간 전인데 늦게 push 돼 기간 안에 병합된 작업도 싣는다 (예: 금 17:27 커밋 → 화요일 push·병합).
+  // 기간 안의 병합 커밋마다 병합으로 새로 들어온 커밋(^1..^2)을 더한다. 이미 보고한 것은 아래 exclude 로 걸러진다.
+  const known = new Set(all.map((c) => c.hash));
+  const merges = (await git(['log', '--remotes', '--merges', ...range, '--format=%H'], cwd)).split('\n').filter(Boolean);
+  for (const m of merges) {
+    for (const c of parseLog(await git(['log', '--no-merges', `${m}^1..${m}^2`, FMT], cwd))) {
+      if (!known.has(c.hash)) { known.add(c.hash); all.push(c); }
+    }
+  }
+  if (!all.length) return { key, product, layer, commits: [], excluded: 0 };
 
   // 리베이스로 커밋 날짜만 갱신된 오래된 작업은 제외 (작성일이 기간 시작보다 staleDays 이상 이전)
   const staleBefore = Date.parse(since) - staleDays * 86400000;
+
+  // main/master 에 들어간 것 = 배포 반영. 스쿼시로 해시가 바뀌므로 제목으로도 대조.
+  // 늦게 병합된 커밋은 커밋 시각이 기간 전이라, 대조 범위는 staleDays 만큼 넓게 잡는다.
+  const ref = await mainRef(cwd);
+  const onMain = ref ? parseLog(await git(['log', ref, '--no-merges', `--since=${new Date(staleBefore).toISOString()}`, FMT], cwd)) : [];
+  const mainHashes = new Set(onMain.map((c) => c.hash));
+  const mainSubjects = new Set(onMain.map((c) => normSubject(c.subject)));
   const seen = new Map();
   let excluded = 0;
   for (const c of all) {
