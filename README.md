@@ -47,6 +47,9 @@ npm run build:fetch    # git fetch 후 최신으로 생성
 작성자 통합/봇은 `EMAIL_MAP` 참조.
 
 ## 업무 보고 (슬랙, 일간·주간)
+> **2026-10-06~ 예약 실행 중지, 수동 실행만.** GitHub 예약이 2~8시간씩 늦게 시작해 일시 중지했다. 아래 표는 예약을 다시 켰을 때의 동작이다.
+> 수동 실행: `gh workflow run report.yml -R gost6967/git-metrics -f mode=daily -f post=true` (주간은 `mode=weekly`)
+
 같은 레포 목록·작성자 통합 규칙으로 팀원 전체의 커밋을 모아 비개발자용 업무 보고를 슬랙에 올린다.
 워크플로: `.github/workflows/report.yml`, 코드: `report/`.
 

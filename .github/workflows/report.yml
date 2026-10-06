@@ -3,10 +3,12 @@ name: Work report (Slack)
 # 공개 레포 주의: 보고서 원문은 커밋·로그에 남기지 않고 슬랙으로만 보낸다.
 # 이미 보고한 커밋 기록(report/.state)은 Actions 캐시로만 보존한다.
 on:
-  schedule:
-    # 정각은 GitHub 예약 실행이 몰려 지연되기 쉬워 10분 앞당긴다. 시각을 바꾸면 report.mjs DAILY_AT/WEEKLY_AT도 같이 바꾼다.
-    - cron: '50 8 * * 1-5'  # 일간: 평일 17:50 KST
-    - cron: '50 23 * * 0-4' # 주간: 평일 08:50 KST (UTC 일~목 23:50) — 그 주 마지막 근무일에만 게시 (보통 금, 금 휴무면 목)
+  # 예약 실행 일시 중지 (2026-10-06): GitHub 예약이 2~8시간씩 늦게 시작해 일간 보고로 쓸 수 없어 당분간 수동 실행만 한다.
+  # 다시 켜려면 아래 주석을 풀거나, 외부 스케줄러(Cloud Scheduler 등)로 workflow_dispatch를 호출한다.
+  # schedule:
+  #   # 시각을 바꾸면 report.mjs DAILY_AT/WEEKLY_AT도 같이 바꾼다.
+  #   - cron: '50 8 * * 1-5'  # 일간: 평일 17:50 KST
+  #   - cron: '50 23 * * 0-4' # 주간: 평일 08:50 KST (UTC 일~목 23:50) — 그 주 마지막 근무일에만 게시 (보통 금, 금 휴무면 목)
   workflow_dispatch:
     inputs:
       mode:
