@@ -3,6 +3,7 @@ import { execFile } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
+import { labelOf } from './repo-labels.mjs';
 
 // 레포 목록·작성자 통합(AUTHOR_MAP_JSON / authors.local.json)은 리포트(harvest.js)와 같은 정의를 쓴다
 const { REPOS, canon: canonAuthor } = createRequire(import.meta.url)('../harvest.js');
@@ -10,6 +11,15 @@ const { REPOS, canon: canonAuthor } = createRequire(import.meta.url)('../harvest
 // 로컬: 워크스페이스의 relpath / CI: REPO_BASE/<key> 로 clone (harvest.js와 같은 규약)
 const CI_MODE = !!process.env.REPO_BASE;
 const BASE = process.env.REPO_BASE || '/Users/seominsu/WebstormProjects';
+
+// CI 는 실행 때 nd-market 조직의 보관되지 않은 레포를 모두 받아 오고, REPOS 에 없는 것을 REPO_BASE/.extra.json 에 적는다.
+// 로컬은 REPOS 만 본다.
+function reportRepos() {
+  const extraFile = path.join(BASE, '.extra.json');
+  if (!CI_MODE || !fs.existsSync(extraFile)) return REPOS;
+  const extras = JSON.parse(fs.readFileSync(extraFile, 'utf8')).map((name) => [name, name, null, ...labelOf(name)]);
+  return [...REPOS, ...extras];
+}
 
 const RELEASE_RE = /^chore\(release\)/i;
 const AI_DART_RE = /ai-dart/i;
@@ -93,7 +103,7 @@ async function collectRepo([key, rel, , product, layer], { since, until, fetch, 
 // exclude: 이전 보고에 이미 실린 커밋 키(레포·작성자·제목). 리베이스로 날짜가 바뀐 커밋이 다시 실리는 것을 막는다.
 // 반환: { people: [{ name, count, repos: [{ repo, product, layer, commits: [{subject, deployed, date}] }] }], releases, keys, missing }
 export async function collect({ since, until, fetch = false, exclude = new Set(), staleDays = 14 }) {
-  const results = await Promise.all(REPOS.map((r) => collectRepo(r, { since, until, fetch, exclude, staleDays })));
+  const results = await Promise.all(reportRepos().map((r) => collectRepo(r, { since, until, fetch, exclude, staleDays })));
   const people = new Map();
   const releases = [];
   const missing = [];

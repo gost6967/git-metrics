@@ -87,7 +87,19 @@ jobs:
         run: |
           mkdir -p _repos
           since=$(date -u -d '21 days ago' +%Y-%m-%d)
-          node -e "require('./harvest').repoList().forEach(r=>console.log(r.key+' '+r.slug))" | while read key slug; do
+          # harvest.js REPOS + nd-market 조직의 보관되지 않은 나머지 레포(새 레포 자동 포함). 추가분 이름은 _repos/.extra.json 으로 넘긴다.
+          GH_TOKEN="${TOKEN_ND:-$TOKEN_ALL}" gh repo list nd-market --no-archived -L 1000 --json name -q '.[].name' > /tmp/org-repos.txt
+          node -e "
+            const fs = require('fs');
+            const known = require('./harvest').repoList();
+            const knownNames = new Set(known.map(r => r.slug.split('/')[1]));
+            const extra = fs.readFileSync('/tmp/org-repos.txt', 'utf8').split('\n').filter(n => n && !knownNames.has(n));
+            fs.writeFileSync('_repos/.extra.json', JSON.stringify(extra));
+            for (const r of known) console.log(r.key + ' ' + r.slug);
+            for (const n of extra) console.log(n + ' nd-market/' + n);
+          " > /tmp/clone-list.txt
+          echo "대상 레포 $(wc -l < /tmp/clone-list.txt)개 (조직 자동 추가 $(node -e "console.log(require('./_repos/.extra.json').length)")개)"
+          while read key slug; do
             case "$slug" in
               fashionon-repo/*) TOKEN="${TOKEN_FO:-$TOKEN_ALL}" ;;
               *)                TOKEN="${TOKEN_ND:-$TOKEN_ALL}" ;;
@@ -96,7 +108,7 @@ jobs:
             git clone --quiet --no-tags --no-single-branch --shallow-since="$since" "$url" "_repos/$key" 2>/dev/null \
               || git clone --quiet --no-tags --no-single-branch --depth 200 "$url" "_repos/$key" 2>/dev/null \
               || echo "  ! skip $slug (권한/미존재)"
-          done
+          done < /tmp/clone-list.txt
 
       - name: Restore reported-commit state
         uses: actions/cache/restore@v4
