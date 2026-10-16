@@ -21,7 +21,9 @@ function reportRepos() {
   return [...REPOS, ...extras];
 }
 
-const RELEASE_RE = /^chore\(release\)/i;
+// 버전 릴리스(chore(release)) 와 배포 매니페스트 갱신(deploy(...), Cloud Build 자동 커밋)은 사람 목록 대신 배포 섹션으로
+const RELEASE_RE = /^(chore\(release\)|deploy\()/i;
+const DEPLOY_BOT_RE = /cloud ?build|cloudbuild/i;
 const AI_DART_RE = /ai-dart/i;
 
 function git(args, cwd, timeout = 120000) {
@@ -34,6 +36,7 @@ function git(args, cwd, timeout = 120000) {
 // AI-DART 자동 수정 PR은 봇이지만 보고에는 남긴다
 function canon(email, name) {
   if (AI_DART_RE.test(name + email)) return ['AI-DART (자동 수정)', false];
+  if (DEPLOY_BOT_RE.test(name + email)) return [name, true];
   return canonAuthor(email, name);
 }
 
