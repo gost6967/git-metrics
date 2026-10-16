@@ -66,6 +66,14 @@ npm run build:fetch    # git fetch 후 최신으로 생성
 - 리베이스로 같은 커밋이 다시 잡히지 않도록, 보고한 커밋은 `report/.state/seen.json`에 기록해 제외한다. CI에서는 Actions 캐시로 보존한다.
 - **공개 레포라** 보고서 원문은 커밋하지도 CI 로그에 찍지도 않는다. 슬랙이 유일한 보관처다.
 
+### 미리보기 후 게시
+공개 레포라 본문을 로그·아티팩트에 평문으로 남길 수 없어, 미리보기는 암호화해서 남긴다.
+1. 미리보기: `gh workflow run report.yml -R gost6967/git-metrics -f mode=weekly -f preview=true` — 게시하지 않는다.
+   본문은 `report/preview.pub.pem`(공개키)으로 암호화한 아티팩트 `preview`(3일 보관), 게시 대기분은 Actions 캐시 `work-report-pending-<실행ID>`.
+2. 확인: `gh run download <실행ID> -R gost6967/git-metrics -n preview -D /tmp/wr && node report/preview-decrypt.mjs /tmp/wr/preview.enc.json`
+   — 개인키 `~/.config/work-report/preview.key.pem`(레포 밖, 서민수 Mac)으로만 열린다. 키를 새로 만들면 공개키 파일도 교체한다.
+3. 게시: `gh workflow run report.yml -R gost6967/git-metrics -f preview_run=<실행ID>` — 다시 만들지 않고 미리본 본문 그대로 올리고 보고 기록을 남긴다.
+
 ### 보고서 작성 규칙
 요약 지침의 원본은 `report/summarize.mjs`(`SYSTEM`, `DAILY_MAX_ITEMS`, `WEEKLY_MAX_ITEMS`)다. 규칙을 바꾸면 이 표도 같이 고친다.
 

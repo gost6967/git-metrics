@@ -4,6 +4,10 @@
 //   경계 시각 = 예약 실행 시각. 실행이 늦게 시작해도 경계 이후 커밋은 다음 보고로 넘어가 빠지거나 겹치지 않는다.
 //   --skip-holiday: 당일이 보고일이 아니면(일간: 주말·공휴일, 주간: 그 주 마지막 근무일이 아님) 게시하지 않고 끝낸다.
 //                   예약 실행에서만 쓴다 — 주간은 평일 매일 예약하고 이 판정으로 하루만 보낸다.
+//   --preview: 게시하지 않고 본문을 미리보기 공개키로 암호화해 out/preview.enc.json 에 쓰고(로컬에서 개인키로만 열림),
+//              게시 대기분(본문·보고 키)을 .pending/pending.json 에 남긴다 (CI 는 Actions 캐시로 보존).
+//   --post-pending: 다시 만들지 않고 .pending/pending.json 의 본문을 그대로 게시하고 보고 기록을 남긴다.
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -15,10 +19,12 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 // 공개 레포라 보고서 원문·상태는 커밋하지 않는다 (둘 다 gitignore, CI 상태는 Actions 캐시로 보존)
 const OUT_DIR = path.join(here, 'out');
 const STATE = path.join(here, '.state', 'seen.json');
+const PENDING = path.join(here, '.pending', 'pending.json');
+const PREVIEW_PUB = path.join(here, 'preview.pub.pem');
 const CI = !!process.env.CI;
 
 function parseArgs(argv) {
-  const a = { mode: 'daily', date: null, fetch: false, post: false, plain: false, skipHoliday: false };
+  const a = { mode: 'daily', date: null, fetch: false, post: false, plain: false, skipHoliday: false, preview: false, postPending: false };
   for (let i = 0; i < argv.length; i++) {
     const k = argv[i];
     if (k === '--mode') a.mode = argv[++i];
@@ -27,6 +33,8 @@ function parseArgs(argv) {
     else if (k === '--post') a.post = true;
     else if (k === '--plain') a.plain = true;
     else if (k === '--skip-holiday') a.skipHoliday = true;
+    else if (k === '--preview') a.preview = true;
+    else if (k === '--post-pending') a.postPending = true;
   }
   if (!['daily', 'weekly'].includes(a.mode)) throw new Error('--mode 는 daily 또는 weekly');
   return a;
@@ -116,8 +124,27 @@ async function postSlack(mode, text) {
   return true;
 }
 
+// 공개 레포 산출물이라 하이브리드 암호화: 본문은 AES-256-GCM, 그 키는 미리보기 공개키(RSA-OAEP)로 감싼다.
+// 복호화는 report/preview-decrypt.mjs + 로컬 개인키(~/.config/work-report/preview.key.pem)로만 가능하다.
+function encryptForPreview(text) {
+  const key = crypto.randomBytes(32);
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+  const data = Buffer.concat([cipher.update(text, 'utf8'), cipher.final()]);
+  const wrapped = crypto.publicEncrypt({ key: fs.readFileSync(PREVIEW_PUB), oaepHash: 'sha256' }, key);
+  return { k: wrapped.toString('base64'), iv: iv.toString('base64'), tag: cipher.getAuthTag().toString('base64'), data: data.toString('base64') };
+}
+
+async function postPending() {
+  if (!fs.existsSync(PENDING)) throw new Error('게시 대기분이 없다 (미리보기 실행 ID 확인)');
+  const pending = JSON.parse(fs.readFileSync(PENDING, 'utf8'));
+  console.log(`[${pending.mode}] 미리보기 본문 게시 (${pending.date}, 보고 키 ${pending.keys.length}건)`);
+  if (await postSlack(pending.mode, pending.text)) saveState(loadState(), pending.mode, pending.keys, pending.date);
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
+  if (args.postPending) return postPending();
   const date = args.date || (args.skipHoliday ? slotDate(args.mode) : todayKst());
   const holidays = (await loadHolidays()) ?? new Map();
   if (args.skipHoliday && !isReportDay(args.mode, date, holidays)) {
@@ -135,7 +162,7 @@ async function main() {
   const total = data.people.reduce((n, x) => n + x.count, 0);
   console.log(`커밋 ${total}건 · ${data.people.length}명 · 릴리스 ${data.releases.length}건 (이미 보고 ${data.excluded}건 제외)`);
   // 수동 실행 뒤 늦게 돈 예약 실행처럼, 새 커밋 없이 이미 보고한 것만 있으면 빈 보고를 다시 올리지 않는다
-  if (args.post && !data.keys.length && data.excluded) {
+  if ((args.post || args.preview) && !data.keys.length && data.excluded) {
     console.log('새로 보고할 커밋이 없어 게시하지 않음');
     return;
   }
@@ -148,7 +175,12 @@ async function main() {
   fs.writeFileSync(out, text + '\n');
   console.log('저장:', path.relative(here, out));
 
-  if (args.post) {
+  if (args.preview) {
+    fs.writeFileSync(path.join(OUT_DIR, 'preview.enc.json'), JSON.stringify(encryptForPreview(text)));
+    fs.mkdirSync(path.dirname(PENDING), { recursive: true });
+    fs.writeFileSync(PENDING, JSON.stringify({ mode: args.mode, date, text, keys: data.keys }));
+    console.log('미리보기 저장 (암호화) — 게시하지 않음');
+  } else if (args.post) {
     // 실제로 게시됐을 때만 '보고함'으로 기록 (웹훅 미설정이면 다음 보고에 다시 싣는다)
     if (await postSlack(args.mode, text)) saveState(state, args.mode, data.keys, date);
   } else if (!CI) {

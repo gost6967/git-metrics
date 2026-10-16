@@ -6,3 +6,4 @@ authors.local.json
 .idea/
 report/out/
 report/.state/
+report/.pending/
