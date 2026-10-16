@@ -1,6 +1,7 @@
 // 사용법: node report/report.mjs --mode daily|weekly [--date YYYY-MM-DD] [--fetch] [--post] [--plain] [--skip-holiday]
 //   daily : 직전 근무일 17:50 ~ 당일 17:50 (KST, 주말·공휴일은 근무일에서 제외)
-//   weekly: 지난 주간 보고일 08:50 ~ 당일 08:50 (KST). 보고일 = 그 주 마지막 근무일(보통 금, 금이 휴무면 목 …)
+//   weekly: 지난주 금 08:50 ~ 당일 08:50 (KST). 보고일 = 그 주 마지막 근무일(보통 금, 금이 휴무면 목 …).
+//           직전 보고가 목요일이었으면 집계는 그날부터(표기는 금요일부터).
 //   경계 시각 = 예약 실행 시각. 실행이 늦게 시작해도 경계 이후 커밋은 다음 보고로 넘어가 빠지거나 겹치지 않는다.
 //   --skip-holiday: 당일이 보고일이 아니면(일간: 주말·공휴일, 주간: 그 주 마지막 근무일이 아님) 게시하지 않고 끝낸다.
 //                   예약 실행에서만 쓴다 — 주간은 평일 매일 예약하고 이 판정으로 하루만 보낸다.
@@ -86,14 +87,17 @@ function period(mode, date, holidays) {
       period: `${label(prev)} ${DAILY_AT} ~ ${label(date)} ${DAILY_AT} · 원격 저장소에 올라온 커밋 기준`,
     };
   }
-  // 직전 주간 보고일. 한 주 전체가 휴무였다면 그 주는 보고가 없으므로 더 거슬러 올라가 합친다.
-  let from = null;
-  for (let w = 1; !from && w <= 8; w++) from = weeklyReportDay(addDays(date, -7 * w), holidays);
-  from ??= addDays(date, -7);
+  // 표기는 '지난주 금요일 ~ 이번 보고일(보통 금)'. 집계는 직전 주간 보고일이 그보다 이르면(금 휴무로 목요일에 보낸 주)
+  // 그날부터 잡아 사이 커밋이 빠지지 않게 한다 — 이미 보고한 커밋은 중복 제외로 걸러진다.
+  // 한 주 전체가 휴무였다면 그 주는 보고가 없으므로 더 거슬러 올라가 합친다.
+  let prevReport = null;
+  for (let w = 1; !prevReport && w <= 8; w++) prevReport = weeklyReportDay(addDays(date, -7 * w), holidays);
+  const prevFriday = addDays(date, -((weekday(date) + 6) % 7) - 3); // 이번 주 월요일 - 3일
+  const from = prevReport && prevReport < prevFriday ? prevReport : prevFriday;
   return {
     since: iso(from, WEEKLY_AT), until: iso(date, WEEKLY_AT),
-    title: `주간 개발 업무 보고 – ${label(from)} ~ ${label(date)}`,
-    period: `${label(from)} ${WEEKLY_AT} ~ ${label(date)} ${WEEKLY_AT} · 원격 저장소에 올라온 커밋 기준`,
+    title: `주간 개발 업무 보고 – ${label(prevFriday)} ~ ${label(date)}`,
+    period: `${label(prevFriday)} ${WEEKLY_AT} ~ ${label(date)} ${WEEKLY_AT} · 원격 저장소에 올라온 커밋 기준`,
   };
 }
 
