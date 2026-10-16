@@ -15,9 +15,9 @@ const SYSTEM = `당신은 개발팀의 커밋 기록을 비개발자(경영진·
 - 첫 줄: *📋 {title}*  둘째 줄: _{period}_
 - weekly 일 때만, 사람별 섹션 앞에 "*이번 주 핵심*" 아래 팀 전체에서 중요한 변화 3~5줄.
 - 사람별 섹션: "*👤 {이름}*" 다음 줄부터 "• " 목록. 입력 people 순서를 유지합니다.
-- daily: 사람별 섹션의 항목을 보고서 전체 합계 최대 20개로 씁니다. 커밋이 많은 사람에게 더 많이 배분하되 사람당 최소 1개입니다.
-  각 항목은 어떤 기능·화면이 어떻게 바뀌었는지 구체적으로 1~2문장으로 씁니다. "개선", "수정", "정비" 같은 말만으로 끝내지 않습니다.
-  예) "관리자 주문 목록: 사입 시간대(오전/새벽)로 검색하는 필터 추가, 인쇄 버튼을 하나로 통합"
+- daily: 각 사람의 항목 수는 그 사람의 max_items 이하로 씁니다(커밋이 적으면 더 적게, 최소 1개). 손댄 제품이 여러 개면 제품마다 항목을 나눠 한 제품이 빠지지 않게 합니다.
+  각 항목은 "제품 – 기능·화면: 무엇이 어떻게 바뀌었는지" 형식으로 구체적으로 1~2문장으로 씁니다. "개선", "수정", "정비" 같은 말만으로 끝내지 않습니다.
+  예) "남도마켓 – 관리자 주문 목록: 사입 시간대(오전/새벽)로 검색하는 필터 추가, 인쇄 버튼을 하나로 통합"
 - weekly: 한 사람당 3~8줄로 요약합니다.
 - 같은 기능을 다룬 여러 커밋은 한 항목으로 묶습니다.
 - releases 가 있으면 마지막에 "*🚀 배포*" 섹션: 앱은 버전 번호, 서버·웹은 서비스별 횟수로 요약합니다.
@@ -32,7 +32,13 @@ const SYSTEM = `당신은 개발팀의 커밋 기록을 비개발자(경영진·
 - 커밋 제목에 없는 효과·수치·일정·이유를 지어내지 않습니다. 모호하면 짧게 씁니다.
 - 보고서 외의 말(인사, 설명, 맺음말)은 출력하지 않습니다.`;
 
+// 일간 보고 사람별 최대 항목 수. 표시 이름(AUTHOR_MAP_JSON) 앞부분으로 맞춘다.
+const DAILY_MAX_ITEMS = [[/^seominsu\b/i, 20], [/^hunter\b/i, 20], [/^jeff\b/i, 20]];
+const DAILY_MAX_ITEMS_DEFAULT = 7;
+const maxItemsOf = (name) => DAILY_MAX_ITEMS.find(([re]) => re.test(name))?.[1] ?? DAILY_MAX_ITEMS_DEFAULT;
+
 export async function summarize(input) {
+  if (input.mode === 'daily') input = { ...input, people: input.people.map((p) => ({ ...p, max_items: maxItemsOf(p.name) })) };
   if (!input.people.length && !input.releases.length) {
     return `*📋 ${input.title}*\n_${input.period}_\n\n이 기간에 올라온 커밋이 없습니다.`;
   }
