@@ -6,6 +6,7 @@ import { query } from '@anthropic-ai/claude-agent-sdk';
 const ALL_TOOLS = ['Read', 'Grep', 'Glob', 'Write', 'Edit', 'MultiEdit', 'NotebookEdit', 'Bash', 'BashOutput',
   'KillShell', 'WebFetch', 'WebSearch', 'Task', 'TodoWrite'];
 
+// 보고서 작성 규칙. 바꾸면 README '보고서 작성 규칙' 표도 같이 고친다.
 const SYSTEM = `당신은 개발팀의 커밋 기록을 비개발자(경영진·기획·운영·CS)가 읽는 업무 보고로 정리합니다.
 
 입력은 JSON입니다: title(제목), period(기간), mode(daily|weekly), people(사람별 → 레포별 커밋 목록), releases(버전 업데이트 커밋).
