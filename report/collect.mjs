@@ -24,6 +24,8 @@ function reportRepos() {
 // 버전 릴리스(chore(release)) 와 배포 매니페스트 갱신(deploy(...), Cloud Build 자동 커밋)은 사람 목록 대신 배포 섹션으로
 const RELEASE_RE = /^(chore\(release\)|deploy\()/i;
 const DEPLOY_BOT_RE = /cloud ?build|cloudbuild/i;
+// 개발팀이 아닌 작성자 — 업무 보고에서 뺀다 (표시 이름 기준). 릴리스 커밋은 배포 섹션에 그대로 남는다.
+const EXCLUDED_AUTHORS = new Set(['제레미', 'ndmliz']);
 const AI_DART_RE = /ai-dart/i;
 
 function git(args, cwd, timeout = 120000) {
@@ -122,7 +124,7 @@ export async function collect({ since, until, fetch = false, exclude = new Set()
         releases.push({ repo: r.key, product: r.product, layer: r.layer, subject: c.subject, date: c.date });
         continue;
       }
-      if (c.bot) continue;
+      if (c.bot || EXCLUDED_AUTHORS.has(c.author)) continue;
       let p = people.get(c.author);
       if (!p) { p = { name: c.author, count: 0, repos: new Map() }; people.set(c.author, p); }
       let pr = p.repos.get(r.key);
