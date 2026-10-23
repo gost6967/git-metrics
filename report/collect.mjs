@@ -52,14 +52,27 @@ async function mainRef(cwd) {
   return null;
 }
 
+// 레코드 구분 \x1e (본문이 여러 줄이라 줄 단위로 못 자른다)
 function parseLog(out) {
-  return out.split('\n').filter(Boolean).map((line) => {
-    const [hash, date, authored, email, name, subject] = line.split('\x1f');
-    return { hash, date, authored, email, name, subject };
+  return out.split('\x1e').map((r) => r.replace(/^\n+/, '')).filter(Boolean).map((rec) => {
+    const [hash, date, authored, email, name, subject, body = ''] = rec.split('\x1f');
+    return { hash, date, authored, email, name, subject, body };
   });
 }
 
-const FMT = '--format=%H%x1f%cI%x1f%aI%x1f%ae%x1f%an%x1f%s';
+const FMT = '--format=%H%x1f%cI%x1f%aI%x1f%ae%x1f%an%x1f%s%x1f%b%x1e';
+
+// 제목만으로 무엇을 바꿨는지 알 수 없는 커밋(작업 코드·리뷰 반영·하네스 표기 등)은 본문 요약을 같이 넘긴다.
+// 모든 커밋에 붙이면 주간 입력이 너무 커져서 막연한 제목에만 붙인다.
+const VAGUE_RE = /staged for manual verification|리뷰 반영|리뷰 후속|^G\d|PR #\d|후속 수정|정리$|^wip\b/i;
+function detailOf(subject, body) {
+  const core = subject.replace(/^[a-z]+(\([^)]*\))?!?:\s*/i, '');
+  if (core.length >= 30 && !VAGUE_RE.test(core)) return undefined;
+  const lines = body.split('\n').map((l) => l.replace(/^[-*•]\s*/, '').trim())
+    .filter((l) => l && !/^(검증|테스트)\s*[:：]|^(co-authored-by|signed-off-by|refs?|closes?)\b/i.test(l));
+  const text = lines.join(' / ');
+  return text ? text.slice(0, 280) : undefined;
+}
 
 async function collectRepo([key, rel, , product, layer], { since, until, fetch, exclude, staleDays }) {
   const cwd = CI_MODE ? path.join(BASE, key) : path.join(BASE, rel);
@@ -100,7 +113,7 @@ async function collectRepo([key, rel, , product, layer], { since, until, fetch, 
     const deployed = mainHashes.has(c.hash) || mainSubjects.has(subject);
     const prev = seen.get(k);
     if (prev) { prev.deployed ||= deployed; continue; }
-    seen.set(k, { key: k, author, bot, subject, date: c.date, deployed });
+    seen.set(k, { key: k, author, bot, subject, detail: detailOf(subject, c.body), date: c.date, deployed });
   }
   return { key, product, layer, commits: [...seen.values()], excluded };
 }
@@ -129,7 +142,7 @@ export async function collect({ since, until, fetch = false, exclude = new Set()
       if (!p) { p = { name: c.author, count: 0, repos: new Map() }; people.set(c.author, p); }
       let pr = p.repos.get(r.key);
       if (!pr) { pr = { repo: r.key, product: r.product, layer: r.layer, commits: [] }; p.repos.set(r.key, pr); }
-      pr.commits.push({ subject: c.subject, deployed: c.deployed, date: c.date.slice(0, 16) });
+      pr.commits.push({ subject: c.subject, ...(c.detail ? { detail: c.detail } : {}), deployed: c.deployed, date: c.date.slice(0, 16) });
       p.count++;
     }
   }
