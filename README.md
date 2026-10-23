@@ -72,6 +72,7 @@ npm run build:fetch    # git fetch 후 최신으로 생성
    본문은 `report/preview.pub.pem`(공개키)으로 암호화한 아티팩트 `preview`(3일 보관), 게시 대기분은 Actions 캐시 `work-report-pending-<실행ID>`.
 2. 확인: `gh run download <실행ID> -R gost6967/git-metrics -n preview -D /tmp/wr && node report/preview-decrypt.mjs /tmp/wr/preview.enc.json`
    — 개인키 `~/.config/work-report/preview.key.pem`(레포 밖, 서민수 Mac)으로만 열린다. 키를 새로 만들면 공개키 파일도 교체한다.
+- 규칙을 바꾼 뒤 이미 보고한 기간으로 결과를 확인하려면 `-f include_reported=true`를 함께 준다(이미 보고한 커밋 포함). 이 미리보기는 게시할 수 없다.
 3. 게시: `gh workflow run report.yml -R gost6967/git-metrics -f preview_run=<실행ID>` — 다시 만들지 않고 미리본 본문 그대로 올리고 보고 기록을 남긴다.
 
 ### 보고서 작성 규칙

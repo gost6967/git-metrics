@@ -27,6 +27,10 @@ on:
         description: 미리보기 — 게시하지 않고 본문을 암호화 아티팩트로 남김 (로컬 개인키로만 열림)
         type: boolean
         default: false
+      include_reported:
+        description: (미리보기 전용) 이미 보고한 커밋도 포함 — 규칙 변경 확인용, 게시 불가
+        type: boolean
+        default: false
       preview_run:
         description: 이 미리보기 실행 ID의 본문을 그대로 게시 (다시 만들지 않음)
         required: false
@@ -59,6 +63,7 @@ jobs:
           IN_DATE: ${{ github.event.inputs.date }}
           IN_PREVIEW: ${{ github.event.inputs.preview }}
           IN_PREVIEW_RUN: ${{ github.event.inputs.preview_run }}
+          IN_INCLUDE_REPORTED: ${{ github.event.inputs.include_reported }}
         run: |
           if [ "$EVENT" = "schedule" ]; then
             if [ "$SCHEDULE" = "50 23 * * 0-4" ]; then echo "mode=weekly" >> "$GITHUB_OUTPUT"; else echo "mode=daily" >> "$GITHUB_OUTPUT"; fi
@@ -68,6 +73,7 @@ jobs:
             echo "mode=$IN_MODE" >> "$GITHUB_OUTPUT"
             echo "post=$IN_POST" >> "$GITHUB_OUTPUT"
             echo "preview=$IN_PREVIEW" >> "$GITHUB_OUTPUT"
+            echo "include_reported=$IN_INCLUDE_REPORTED" >> "$GITHUB_OUTPUT"
             if [ -n "$IN_PREVIEW_RUN" ]; then
               [[ "$IN_PREVIEW_RUN" =~ ^[0-9]+$ ]] || { echo "preview_run 형식 오류"; exit 1; }
               echo "preview_run=$IN_PREVIEW_RUN" >> "$GITHUB_OUTPUT"
@@ -147,6 +153,7 @@ jobs:
           args="--mode ${{ steps.mode.outputs.mode }}"
           [ -n "${{ steps.mode.outputs.date }}" ] && args="$args --date ${{ steps.mode.outputs.date }}"
           if [ "${{ steps.mode.outputs.preview }}" = "true" ]; then args="$args --preview"
+            [ "${{ steps.mode.outputs.include_reported }}" = "true" ] && args="$args --include-reported"
           elif [ "${{ steps.mode.outputs.post }}" = "true" ]; then args="$args --post"; fi
           [ "${{ steps.mode.outputs.skip_holiday }}" = "true" ] && args="$args --skip-holiday"
           node report/report.mjs $args

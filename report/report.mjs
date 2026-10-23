@@ -7,6 +7,7 @@
 //                   예약 실행에서만 쓴다 — 주간은 평일 매일 예약하고 이 판정으로 하루만 보낸다.
 //   --preview: 게시하지 않고 본문을 미리보기 공개키로 암호화해 out/preview.enc.json 에 쓰고(로컬에서 개인키로만 열림),
 //              게시 대기분(본문·보고 키)을 .pending/pending.json 에 남긴다 (CI 는 Actions 캐시로 보존).
+//   --include-reported: (--preview 전용) 이미 보고한 커밋도 넣어 만든다. 규칙 변경 확인용이라 이 미리보기는 게시할 수 없다.
 //   --post-pending: 다시 만들지 않고 .pending/pending.json 의 본문을 그대로 게시하고 보고 기록을 남긴다.
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -25,7 +26,7 @@ const PREVIEW_PUB = path.join(here, 'preview.pub.pem');
 const CI = !!process.env.CI;
 
 function parseArgs(argv) {
-  const a = { mode: 'daily', date: null, fetch: false, post: false, plain: false, skipHoliday: false, preview: false, postPending: false };
+  const a = { mode: 'daily', date: null, fetch: false, post: false, plain: false, skipHoliday: false, preview: false, postPending: false, includeReported: false };
   for (let i = 0; i < argv.length; i++) {
     const k = argv[i];
     if (k === '--mode') a.mode = argv[++i];
@@ -36,8 +37,10 @@ function parseArgs(argv) {
     else if (k === '--skip-holiday') a.skipHoliday = true;
     else if (k === '--preview') a.preview = true;
     else if (k === '--post-pending') a.postPending = true;
+    else if (k === '--include-reported') a.includeReported = true;
   }
   if (!['daily', 'weekly'].includes(a.mode)) throw new Error('--mode 는 daily 또는 weekly');
+  if (a.includeReported && !a.preview) throw new Error('--include-reported 는 --preview 와만 쓴다');
   return a;
 }
 
@@ -142,6 +145,7 @@ function encryptForPreview(text) {
 async function postPending() {
   if (!fs.existsSync(PENDING)) throw new Error('게시 대기분이 없다 (미리보기 실행 ID 확인)');
   const pending = JSON.parse(fs.readFileSync(PENDING, 'utf8'));
+  if (pending.includeReported) throw new Error('이미 보고한 커밋을 포함한 확인용 미리보기라 게시하지 않는다 — 일반 미리보기를 다시 만든다');
   console.log(`[${pending.mode}] 미리보기 본문 게시 (${pending.date}, 보고 키 ${pending.keys.length}건)`);
   if (await postSlack(pending.mode, pending.text)) saveState(loadState(), pending.mode, pending.keys, pending.date);
 }
@@ -159,7 +163,7 @@ async function main() {
   console.log(`[${args.mode}] ${p.since} ~ ${p.until}`);
 
   const state = loadState();
-  const exclude = new Set(Object.keys(state[args.mode] || {}));
+  const exclude = args.includeReported ? new Set() : new Set(Object.keys(state[args.mode] || {}));
   const staleDays = args.mode === 'daily' ? 7 : 14;
   const data = await collect({ since: p.since, until: p.until, fetch: args.fetch, exclude, staleDays });
   if (data.missing.length) console.warn('없는 레포(건너뜀):', data.missing.join(', '));
@@ -182,7 +186,7 @@ async function main() {
   if (args.preview) {
     fs.writeFileSync(path.join(OUT_DIR, 'preview.enc.json'), JSON.stringify(encryptForPreview(text)));
     fs.mkdirSync(path.dirname(PENDING), { recursive: true });
-    fs.writeFileSync(PENDING, JSON.stringify({ mode: args.mode, date, text, keys: data.keys }));
+    fs.writeFileSync(PENDING, JSON.stringify({ mode: args.mode, date, text, keys: data.keys, includeReported: args.includeReported }));
     console.log('미리보기 저장 (암호화) — 게시하지 않음');
   } else if (args.post) {
     // 실제로 게시됐을 때만 '보고함'으로 기록 (웹훅 미설정이면 다음 보고에 다시 싣는다)
