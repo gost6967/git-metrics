@@ -25,7 +25,7 @@ function reportRepos() {
 const RELEASE_RE = /^(chore\(release\)|deploy\()/i;
 const DEPLOY_BOT_RE = /cloud ?build|cloudbuild/i;
 // 개발팀이 아닌 작성자 — 업무 보고에서 뺀다 (표시 이름 기준). 릴리스 커밋은 배포 섹션에 그대로 남는다.
-const EXCLUDED_AUTHORS = new Set(['제레미', 'ndmliz']);
+const EXCLUDED_AUTHORS = new Set(['제레미', 'ndmliz', '한스']);
 const AI_DART_RE = /ai-dart/i;
 
 function git(args, cwd, timeout = 120000) {
