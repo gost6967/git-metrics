@@ -1,6 +1,8 @@
 // harvest.js REPOS 에 없는 조직 레포(실행 때 nd-market 조직에서 자동 발견)의 제품·레이어 표기.
 // 확실한 것만 명시하고, 나머지는 이름 접두로 추정, 그래도 모르면 '기타'에 레포 이름을 붙인다.
 const EXPLICIT = {
+  'bipum':                ['남도마켓', '비품샵'],
+  'nd-receipt-audit':     ['남도마켓', '영수증 정산 확인'],
   'market-rn':            ['남도마켓', 'RN 앱'],
   'nd-developer-console': ['남도마켓', '개발자 콘솔'],
   'nd-welfare-rn':        ['복지몰', 'RN 앱'],
