@@ -10,7 +10,6 @@ const EXPLICIT = {
   'montemilano':          ['QR랜딩', '몬테밀라노'],
   'market-ai-harness':    ['공통/플랫폼', '개발 하네스'],
   'nd-ai-platform':       ['공통/플랫폼', 'AI 플랫폼'],
-  'nd-ml-platform':       ['공통/플랫폼', 'ML 플랫폼'],
   'nd-k8s-manifests':     ['공통/플랫폼', '배포 설정'],
   'nd-design-system':     ['공통/플랫폼', '디자인시스템'],
   'nd-image-kit':         ['공통/플랫폼', '이미지 도구'],

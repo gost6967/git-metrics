@@ -58,7 +58,6 @@ const REPOS = [
   ['nd-welfare-ios',      'save/nd-welfare-ios',                'main',   '복지몰',         '네이티브(iOS)',     '네이티브'],
   ['bipum',               'ndmarket/bipum',                     'main',   '남도마켓',       '비품샵',           '프론트'],
   ['nd-receipt-audit',    'save/nd-receipt-audit',               'main',   '남도마켓',       '영수증 정산 확인', '백엔드'],
-  ['nd-ml-platform',     'save/nd-ml-platform',                 'main',   '공통/플랫폼',    'ML 플랫폼',        'AI'],
   ['nd-developer-console','ndmarket/nd-developer-console',      'main',   '남도마켓',       '개발자 콘솔',      '프론트'],
   ['nd-ai-platform',     'nd-ai-platform',                      'main',   '공통/플랫폼',    'AI 플랫폼',        'AI'],
   ['ai-dart',            'save/ai-dart',                        'main',   '공통/플랫폼',    'AI-DART',          'AI'],
@@ -158,7 +157,10 @@ async function harvest({ fetch = false } = {}) {
   return ordered;
 }
 
+// 집계에서 뺀 레포. CI 업무 보고의 조직 레포 자동 추가에서도 제외한다.
+const EXCLUDED_REPOS = ['nd-ml-platform'];
+
 // CI clone용: [{ key, slug }] 목록
 function repoList() { return REPOS.map(([key]) => ({ key, slug: slugOf(key) })); }
 
-module.exports = { harvest, REPOS, MIN_MONTH, slugOf, repoList, canon };
+module.exports = { harvest, REPOS, EXCLUDED_REPOS, MIN_MONTH, slugOf, repoList, canon };

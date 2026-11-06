@@ -97,8 +97,9 @@ jobs:
           GH_TOKEN="${TOKEN_ND:-$TOKEN_ALL}" gh repo list nd-market --no-archived -L 1000 --json name -q '.[].name' > /tmp/org-repos.txt
           node -e "
             const fs = require('fs');
-            const known = require('./harvest').repoList();
-            const knownNames = new Set(known.map(r => r.slug.split('/')[1]));
+            const { repoList, EXCLUDED_REPOS } = require('./harvest');
+            const known = repoList();
+            const knownNames = new Set([...known.map(r => r.slug.split('/')[1]), ...EXCLUDED_REPOS]);
             const extra = fs.readFileSync('/tmp/org-repos.txt', 'utf8').split('\n').filter(n => n && !knownNames.has(n));
             fs.writeFileSync('_repos/.extra.json', JSON.stringify(extra));
             for (const r of known) console.log(r.key + ' ' + r.slug);

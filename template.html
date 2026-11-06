@@ -167,6 +167,12 @@
       <canvas id="chart2" height="240"></canvas>
       <div class="legend" id="legend2"></div>
     </div>
+    <div class="card" id="growthCard" style="display:none">
+      <div class="row2" style="justify-content:space-between"><b id="growthTitle"></b><small class="hint" id="growthMeta"></small></div>
+      <div class="seg" id="growthPick" style="margin:12px 0"></div>
+      <canvas id="growth" height="300"></canvas>
+      <div style="overflow:auto;margin-top:14px"><table id="growthTbl"></table></div>
+    </div>
     <div class="card" id="rankCard" style="display:none">
       <b style="display:block;margin-bottom:14px">기여자 순위 <small class="hint" id="rankMeta"></small></b>
       <div class="rank" id="rank"></div>
@@ -198,6 +204,7 @@ const cats=[...new Set(REPOS.map(r=>DATA[r].cat))];
 const catColor={};cats.forEach((c,i)=>catColor[c]=PALETTE[i%PALETTE.length]);
 const state={tab:"people",metric:"churn",group:"repo",chart:"line",from:null,to:null,noBot:true,onlyDev:true,sel:new Set(REPOS.filter(r=>DATA[r].cat!=='문서/공통')),showAllRanks:false};
 const RANK_TOP=3; // 기본 노출 순위 (그 이후는 '상세 보기')
+const GROWTH_MAX=12,GROWTH_TOP=5; // 성장 그래프: 최대 개월 수, 기본 선택 인원(기간 합계 상위)
 
 function allMonths(){const s=new Set();REPOS.forEach(r=>DATA[r].records.forEach(x=>s.add(x.month)));return [...s].sort();}
 function monthsInRange(){const m=allMonths();const i=m.indexOf(state.from),j=m.indexOf(state.to);return m.slice(i<0?0:i,(j<0?m.length-1:j)+1);}
@@ -225,8 +232,9 @@ function authorInRepo(author,repo,months){let s=0;DATA[repo].records.forEach(r=>
 const tip=document.getElementById('tip');
 function mkChart(cv){
   const ctx=cv.getContext('2d');let geo=null;
-  function draw(series,stack){
-    const months=monthsInRange();const dpr=window.devicePixelRatio||1;const W=cv.clientWidth||900,H=cv.getAttribute('height')*1||360;
+  const H0=cv.getAttribute('height')*1||360; // draw 가 cv.height 를 dpr 배로 바꾸므로 처음 값을 고정
+  function draw(series,stack,months=monthsInRange()){
+    const dpr=window.devicePixelRatio||1;const W=cv.clientWidth||900,H=H0;
     cv.width=W*dpr;cv.height=H*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,W,H);
     const padL=58,padR=14,padT=14,padB=42,pw=W-padL-padR,ph=H-padT-padB;
     let ymax=0,ymin=0;
@@ -237,7 +245,7 @@ function mkChart(cv){
     const Xb=i=>padL+(i+0.5)*pw/months.length;const Y=v=>padT+ph-(v-ymin)/range*ph;
     ctx.strokeStyle='#242935';ctx.fillStyle='#8b93a7';ctx.lineWidth=1;ctx.font='11px sans-serif';
     for(let t=0;t<=5;t++){const v=ymin+range*t/5,y=Y(v);ctx.beginPath();ctx.moveTo(padL,y);ctx.lineTo(W-padR,y);ctx.stroke();ctx.textAlign='right';ctx.fillText(Math.round(v).toLocaleString(),padL-8,y+3);}
-    ctx.textAlign='center';const step=Math.ceil(months.length/12);
+    ctx.textAlign='center';const step=Math.max(Math.ceil(months.length/12),Math.ceil(months.length*44/pw)); // 라벨 하나에 약 44px
     months.forEach((m,i)=>{if(i%step===0||i===months.length-1)ctx.fillText(m.slice(2),(state.chart==='bar'?Xb(i):X(i)),H-padB+16);});
     geo={months,series,X,Xb,pw,padL};
     const isBar=state.chart==='bar';
@@ -256,6 +264,7 @@ function mkChart(cv){
 }
 const chart1=mkChart(document.getElementById('chart'));
 const chart2=mkChart(document.getElementById('chart2'));
+const chartG=mkChart(document.getElementById('growth'));
 function legend(id,items){document.getElementById(id).innerHTML=items.map(i=>'<span class="lg"><span class="sw" style="background:'+i.color+'"></span>'+i.name+'</span>').join('');}
 
 // ---- repo selector ----
@@ -333,12 +342,42 @@ function renderPeople(){
   let t='<thead><tr><th>기여자</th>'+selProds.map(p=>`<th><span class="dot" style="background:${PRODUCT_COLOR[p]}"></span>${p}</th>`).join('')+'<th>합계</th></tr></thead><tbody>';
   shown.forEach(a=>{const vs=selProds.map(p=>selRepos().filter(r=>DATA[r].product===p).reduce((s,r)=>s+authorInRepo(a,r,months),0));t+=`<tr><td>${a}</td>`+vs.map(v=>`<td>${fmt(v)}</td>`).join('')+`<td><b>${fmt(vs.reduce((x,y)=>x+y,0))}</b></td></tr>`;});
   t+='</tbody>';document.getElementById('tbl').innerHTML=t;
+  renderGrowth();
+}
+
+// ---- 개발자별 월별 성장: 선택 기간의 끝 달 기준 최근 최대 12개월 ----
+function growthMonths(){const i=MS.indexOf(state.to);const j=i<0?MS.length-1:i;return MS.slice(Math.max(0,j-GROWTH_MAX+1),j+1);}
+function renderGrowth(){
+  const months=growthMonths();const totals=authorTotals(months);
+  const authors=Object.keys(totals).filter(a=>totals[a]).sort((a,b)=>totals[b]-totals[a]);
+  const colorOf={};authors.forEach((a,i)=>colorOf[a]=PALETTE[i%PALETTE.length]);
+  if(!state.growthSel)state.growthSel=new Set(authors.slice(0,GROWTH_TOP));
+  const picked=authors.filter(a=>state.growthSel.has(a));
+  document.getElementById('growthTitle').textContent='개발자별 월별 성장 · '+METRIC_LABEL[state.metric];
+  document.getElementById('growthMeta').textContent=(months[0]||'')+' ~ '+(months[months.length-1]||'')+' ('+months.length+'개월, 기간 끝 달 기준)';
+  const pick=document.getElementById('growthPick');pick.innerHTML='';
+  authors.forEach(a=>{const b=document.createElement('button');b.className='pill';b.textContent=a;
+    if(state.growthSel.has(a)){b.style.background=colorOf[a];b.style.borderColor=colorOf[a];b.style.color='#08111f';b.style.fontWeight='600';}
+    b.onclick=()=>{state.growthSel.has(a)?state.growthSel.delete(a):state.growthSel.add(a);render();};pick.appendChild(b);});
+  const series=picked.map(a=>({name:a,color:colorOf[a],data:months.map(m=>authorMonth(a,m))}));
+  series.length?chartG.draw(series,false,months):chartG.clear();
+  // 추세: 최근 3개월 평균 vs 직전 3개월 평균 (진행 중인 이번 달은 일부만 쌓여 있으므로 제외)
+  const avg=xs=>xs.length?xs.reduce((s,v)=>s+v,0)/xs.length:0;
+  const d=new Date(),thisMonth=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+  const skip=months[months.length-1]===thisMonth?1:0;
+  let t='<thead><tr><th>개발자</th>'+months.map(m=>`<th>${m.slice(2)}</th>`).join('')+`<th>최근 3개월 추세${skip?' <small class="hint">(이번 달 제외)</small>':''}</th></tr></thead><tbody>`;
+  series.forEach(se=>{const data=se.data.slice(0,se.data.length-skip),n=data.length,cur=avg(data.slice(Math.max(0,n-3))),prev=avg(data.slice(Math.max(0,n-6),Math.max(0,n-3)));
+    const tr=prev?((cur-prev)/Math.abs(prev)*100):null;
+    const tv=tr===null?'—':`<span style="color:${tr>=0?'#4ade80':'#f87171'}">${tr>=0?'▲':'▼'} ${Math.abs(tr).toFixed(0)}%</span>`;
+    t+=`<tr><td><span class="dot" style="background:${se.color}"></span>${se.name}</td>`+se.data.map(v=>`<td>${fmt(v)}</td>`).join('')+`<td>${tv}</td></tr>`;});
+  t+='</tbody>';document.getElementById('growthTbl').innerHTML=t;
 }
 
 function render(){
   const people=state.tab==='people';
   document.getElementById('groupGrp').style.display=people?'none':'block';
   document.getElementById('rankCard').style.display=people?'block':'none';
+  document.getElementById('growthCard').style.display=people?'block':'none';
   document.getElementById('totalCard').style.display=people?'none':'block';
   buildRepoBox();
   if(state.sel.size===0){document.getElementById('kpis').innerHTML='<div class="kpi"><div class="k">선택된 레포 없음</div><div class="v">—</div></div>';document.getElementById('legend').innerHTML='';document.getElementById('legend2').innerHTML='';chart1.clear();chart2.clear();document.getElementById('tbl').innerHTML='';document.getElementById('rank').innerHTML='';return;}
