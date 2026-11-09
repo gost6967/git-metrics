@@ -169,7 +169,7 @@
     </div>
     <div class="card" id="growthCard" style="display:none">
       <div class="row2" style="justify-content:space-between"><b id="growthTitle"></b><small class="hint" id="growthMeta"></small></div>
-      <div style="margin:12px 0 4px"><b id="teamTitle"></b> <small class="hint">개발자별로 쌓은 높이 = 개발팀 합계</small></div>
+      <div style="margin:12px 0 4px"><b id="teamTitle"></b> <small class="hint">개발팀 전원 수치 합계</small></div>
       <canvas id="growthTeam" height="220"></canvas>
       <div class="legend" id="legendTeam"></div>
       <div class="seg" id="growthPick" style="margin:16px 0 12px"></div>
@@ -371,7 +371,9 @@ function renderGrowth(){
   const teamParts=authors.map(a=>({name:a,color:colorOf[a],data:months.map(m=>authorMonth(a,m))}));
   const team={name:'개발팀 합계',color:'#e5e7eb',bold:true,data:months.map((m,i)=>teamParts.reduce((s,se)=>s+se.data[i],0))};
   document.getElementById('teamTitle').textContent='개발팀 전체 월별 추이 · '+METRIC_LABEL[state.metric];
-  teamParts.length?chartT.draw(teamParts,true,months):chartT.clear();legend('legendTeam',teamParts);
+  // 팀원 수치를 합친 한 줄만 그린다 (개인별은 아래 그래프)
+  teamParts.length?chartT.draw([{...team,color:'#38bdf8'}],false,months):chartT.clear();
+  legend('legendTeam',[{name:'개발팀 합계',color:'#38bdf8'}]);
   // 추세: 최근 3개월 평균 vs 직전 3개월 평균 (진행 중인 이번 달은 일부만 쌓여 있으므로 제외)
   const avg=xs=>xs.length?xs.reduce((s,v)=>s+v,0)/xs.length:0;
   const d=new Date(),thisMonth=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
