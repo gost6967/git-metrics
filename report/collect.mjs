@@ -6,7 +6,7 @@ import { createRequire } from 'node:module';
 import { labelOf } from './repo-labels.mjs';
 
 // 레포 목록·작성자 통합(AUTHOR_MAP_JSON / authors.local.json)은 리포트(harvest.js)와 같은 정의를 쓴다
-const { REPOS, canon: canonAuthor } = createRequire(import.meta.url)('../harvest.js');
+const { REPOS, canon: canonAuthor, DEV_AUTHORS } = createRequire(import.meta.url)('../harvest.js');
 
 // 로컬: 워크스페이스의 relpath / CI: REPO_BASE/<key> 로 clone (harvest.js와 같은 규약)
 const CI_MODE = !!process.env.REPO_BASE;
@@ -24,8 +24,9 @@ function reportRepos() {
 // 버전 릴리스(chore(release)) 와 배포 매니페스트 갱신(deploy(...), Cloud Build 자동 커밋)은 사람 목록 대신 배포 섹션으로
 const RELEASE_RE = /^(chore\(release\)|deploy\()/i;
 const DEPLOY_BOT_RE = /cloud ?build|cloudbuild/i;
-// 개발팀이 아닌 작성자 — 업무 보고에서 뺀다 (표시 이름 기준). 릴리스 커밋은 배포 섹션에 그대로 남는다.
-const EXCLUDED_AUTHORS = new Set(['제레미', 'ndmliz', '한스']);
+// 업무 보고에는 개발팀(harvest.js DEV_AUTHORS)과 AI-DART 자동 수정만 싣는다. 릴리스 커밋은 작성자와 무관하게 배포 섹션에 남는다.
+const AI_DART_NAME = 'AI-DART (자동 수정)';
+const isReportAuthor = (name) => DEV_AUTHORS.has(name) || name === AI_DART_NAME;
 const AI_DART_RE = /ai-dart/i;
 
 function git(args, cwd, timeout = 120000) {
@@ -37,7 +38,7 @@ function git(args, cwd, timeout = 120000) {
 
 // AI-DART 자동 수정 PR은 봇이지만 보고에는 남긴다
 function canon(email, name) {
-  if (AI_DART_RE.test(name + email)) return ['AI-DART (자동 수정)', false];
+  if (AI_DART_RE.test(name + email)) return [AI_DART_NAME, false];
   if (DEPLOY_BOT_RE.test(name + email)) return [name, true];
   return canonAuthor(email, name);
 }
@@ -137,7 +138,7 @@ export async function collect({ since, until, fetch = false, exclude = new Set()
         releases.push({ repo: r.key, product: r.product, layer: r.layer, subject: c.subject, date: c.date });
         continue;
       }
-      if (c.bot || EXCLUDED_AUTHORS.has(c.author)) continue;
+      if (c.bot || !isReportAuthor(c.author)) continue;
       let p = people.get(c.author);
       if (!p) { p = { name: c.author, count: 0, repos: new Map() }; people.set(c.author, p); }
       let pr = p.repos.get(r.key);

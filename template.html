@@ -169,7 +169,10 @@
     </div>
     <div class="card" id="growthCard" style="display:none">
       <div class="row2" style="justify-content:space-between"><b id="growthTitle"></b><small class="hint" id="growthMeta"></small></div>
-      <div class="seg" id="growthPick" style="margin:12px 0"></div>
+      <div style="margin:12px 0 4px"><b id="teamTitle"></b> <small class="hint">개발자별로 쌓은 높이 = 개발팀 합계</small></div>
+      <canvas id="growthTeam" height="220"></canvas>
+      <div class="legend" id="legendTeam"></div>
+      <div class="seg" id="growthPick" style="margin:16px 0 12px"></div>
       <canvas id="growth" height="300"></canvas>
       <div style="overflow:auto;margin-top:14px"><table id="growthTbl"></table></div>
     </div>
@@ -265,6 +268,7 @@ function mkChart(cv){
 const chart1=mkChart(document.getElementById('chart'));
 const chart2=mkChart(document.getElementById('chart2'));
 const chartG=mkChart(document.getElementById('growth'));
+const chartT=mkChart(document.getElementById('growthTeam'));
 function legend(id,items){document.getElementById(id).innerHTML=items.map(i=>'<span class="lg"><span class="sw" style="background:'+i.color+'"></span>'+i.name+'</span>').join('');}
 
 // ---- repo selector ----
@@ -347,9 +351,11 @@ function renderPeople(){
 
 // ---- 개발자별 월별 성장: 선택 기간의 끝 달 기준 최근 최대 12개월 ----
 function growthMonths(){const i=MS.indexOf(state.to);const j=i<0?MS.length-1:i;return MS.slice(Math.max(0,j-GROWTH_MAX+1),j+1);}
+// 개발팀 = harvest.js DEV_AUTHORS (봇·비개발자 제외). 성장 그래프는 '개발자만' 토글과 무관하게 개발팀만 그린다.
+const DEV_SET=new Set();REPOS.forEach(r=>DATA[r].records.forEach(x=>{if(!x.bot&&!x.nonDev)DEV_SET.add(x.author);}));
 function renderGrowth(){
   const months=growthMonths();const totals=authorTotals(months);
-  const authors=Object.keys(totals).filter(a=>totals[a]).sort((a,b)=>totals[b]-totals[a]);
+  const authors=Object.keys(totals).filter(a=>totals[a]&&DEV_SET.has(a)).sort((a,b)=>totals[b]-totals[a]);
   const colorOf={};authors.forEach((a,i)=>colorOf[a]=PALETTE[i%PALETTE.length]);
   if(!state.growthSel)state.growthSel=new Set(authors.slice(0,GROWTH_TOP));
   const picked=authors.filter(a=>state.growthSel.has(a));
@@ -361,15 +367,21 @@ function renderGrowth(){
     b.onclick=()=>{state.growthSel.has(a)?state.growthSel.delete(a):state.growthSel.add(a);render();};pick.appendChild(b);});
   const series=picked.map(a=>({name:a,color:colorOf[a],data:months.map(m=>authorMonth(a,m))}));
   series.length?chartG.draw(series,false,months):chartG.clear();
+  // 개발팀 전체: 선택과 무관하게 개발자 전원을 쌓는다
+  const teamParts=authors.map(a=>({name:a,color:colorOf[a],data:months.map(m=>authorMonth(a,m))}));
+  const team={name:'개발팀 합계',color:'#e5e7eb',bold:true,data:months.map((m,i)=>teamParts.reduce((s,se)=>s+se.data[i],0))};
+  document.getElementById('teamTitle').textContent='개발팀 전체 월별 추이 · '+METRIC_LABEL[state.metric];
+  teamParts.length?chartT.draw(teamParts,true,months):chartT.clear();legend('legendTeam',teamParts);
   // 추세: 최근 3개월 평균 vs 직전 3개월 평균 (진행 중인 이번 달은 일부만 쌓여 있으므로 제외)
   const avg=xs=>xs.length?xs.reduce((s,v)=>s+v,0)/xs.length:0;
   const d=new Date(),thisMonth=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
   const skip=months[months.length-1]===thisMonth?1:0;
   let t='<thead><tr><th>개발자</th>'+months.map(m=>`<th>${m.slice(2)}</th>`).join('')+`<th>최근 3개월 추세${skip?' <small class="hint">(이번 달 제외)</small>':''}</th></tr></thead><tbody>`;
-  series.forEach(se=>{const data=se.data.slice(0,se.data.length-skip),n=data.length,cur=avg(data.slice(Math.max(0,n-3))),prev=avg(data.slice(Math.max(0,n-6),Math.max(0,n-3)));
+  [team,...series].forEach(se=>{const data=se.data.slice(0,se.data.length-skip),n=data.length,cur=avg(data.slice(Math.max(0,n-3))),prev=avg(data.slice(Math.max(0,n-6),Math.max(0,n-3)));
     const tr=prev?((cur-prev)/Math.abs(prev)*100):null;
     const tv=tr===null?'—':`<span style="color:${tr>=0?'#4ade80':'#f87171'}">${tr>=0?'▲':'▼'} ${Math.abs(tr).toFixed(0)}%</span>`;
-    t+=`<tr><td><span class="dot" style="background:${se.color}"></span>${se.name}</td>`+se.data.map(v=>`<td>${fmt(v)}</td>`).join('')+`<td>${tv}</td></tr>`;});
+    const b=se.bold?['<b>','</b>']:['',''];
+    t+=`<tr><td><span class="dot" style="background:${se.color}"></span>${b[0]}${se.name}${b[1]}</td>`+se.data.map(v=>`<td>${b[0]}${fmt(v)}${b[1]}</td>`).join('')+`<td>${tv}</td></tr>`;});
   t+='</tbody>';document.getElementById('growthTbl').innerHTML=t;
 }
 

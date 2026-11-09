@@ -8,8 +8,9 @@ const fs = require('fs');
 const BASE = process.env.REPO_BASE || '/Users/seominsu/WebstormProjects';
 const CI_MODE = !!process.env.REPO_BASE;
 const MIN_MONTH = '2024-09'; // 최근 24개월(2년)치 (2024-09 ~)
-// 비개발자(정규화된 표시 이름 기준). 하드 제외 대신 nonDev 플래그로 내보내고, 리포트의 '개발자만' 토글로 숨김/표시.
-const NON_DEV_AUTHORS = new Set(['제레미', '한스']);
+// 현재 개발팀(정규화된 표시 이름 기준). 이 밖의 사람은 nonDev 플래그로 내보내고, 리포트의 '개발자만' 토글로 숨김/표시한다.
+// 업무 보고(report/collect.mjs)도 같은 목록을 쓴다. 팀원이 바뀌면 여기만 고친다.
+const DEV_AUTHORS = new Set(['seominsu (서민수)', 'hunter (장현)', 'Jeff (김용휘)', '호프', '장서윤']);
 // 라인 지표(추가/삭제/churn/파일)에서 제외할 자동생성·벤더 파일. 커밋 수엔 영향 없음.
 const EXCLUDE_FILE = /(^|\/)(package-lock\.json|yarn\.lock|pnpm-lock\.yaml|composer\.lock|Podfile\.lock|Gemfile\.lock|go\.sum)$|(^|\/)(dist|build|\.next|out|\.output|node_modules|vendor)\/|\.min\.(js|css)$|\.(map|snap|svg|lock|xcstrings|strings|pbxproj|md|mdx|markdown|rst|adoc)$|operator\.ya?ml$|(^|\/)search-index\.js$|(^|\/)lang-strings\.xml$/i;
 
@@ -135,7 +136,7 @@ async function extract(cwd, branch) {
   for (const [k, v] of agg) {
     const [mon, auth, bt] = k.split(' ');
     if (mon < MIN_MONTH) continue;
-    recs.push({ month: mon, author: auth, bot: bt === 'true', nonDev: NON_DEV_AUTHORS.has(auth),
+    recs.push({ month: mon, author: auth, bot: bt === 'true', nonDev: !DEV_AUTHORS.has(auth),
       commits: v.commits.size, added: v.added, deleted: v.deleted,
       net: v.added - v.deleted, churn: v.added + v.deleted, files: v.files });
   }
@@ -163,4 +164,4 @@ const EXCLUDED_REPOS = ['nd-ml-platform'];
 // CI clone용: [{ key, slug }] 목록
 function repoList() { return REPOS.map(([key]) => ({ key, slug: slugOf(key) })); }
 
-module.exports = { harvest, REPOS, EXCLUDED_REPOS, MIN_MONTH, slugOf, repoList, canon };
+module.exports = { harvest, REPOS, EXCLUDED_REPOS, MIN_MONTH, slugOf, repoList, canon, DEV_AUTHORS };
