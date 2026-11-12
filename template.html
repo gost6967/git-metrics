@@ -208,6 +208,7 @@ const catColor={};cats.forEach((c,i)=>catColor[c]=PALETTE[i%PALETTE.length]);
 const state={tab:"people",metric:"churn",group:"repo",chart:"line",from:null,to:null,noBot:true,onlyDev:true,sel:new Set(REPOS.filter(r=>DATA[r].cat!=='문서/공통')),showAllRanks:false};
 const RANK_TOP=3; // 기본 노출 순위 (그 이후는 '상세 보기')
 const GROWTH_MAX=12,GROWTH_TOP=5; // 성장 그래프: 최대 개월 수, 기본 선택 인원(기간 합계 상위)
+const TEAM_MAX=24; // 개발팀 전체 월별 추이: 최대 개월 수(2년)
 
 function allMonths(){const s=new Set();REPOS.forEach(r=>DATA[r].records.forEach(x=>s.add(x.month)));return [...s].sort();}
 function monthsInRange(){const m=allMonths();const i=m.indexOf(state.from),j=m.indexOf(state.to);return m.slice(i<0?0:i,(j<0?m.length-1:j)+1);}
@@ -350,7 +351,7 @@ function renderPeople(){
 }
 
 // ---- 개발자별 월별 성장: 선택 기간의 끝 달 기준 최근 최대 12개월 ----
-function growthMonths(){const i=MS.indexOf(state.to);const j=i<0?MS.length-1:i;return MS.slice(Math.max(0,j-GROWTH_MAX+1),j+1);}
+function growthMonths(n=GROWTH_MAX){const i=MS.indexOf(state.to);const j=i<0?MS.length-1:i;return MS.slice(Math.max(0,j-n+1),j+1);}
 // 개발팀 = harvest.js DEV_AUTHORS (봇·비개발자 제외). 성장 그래프는 '개발자만' 토글과 무관하게 개발팀만 그린다.
 const DEV_SET=new Set();REPOS.forEach(r=>DATA[r].records.forEach(x=>{if(!x.bot&&!x.nonDev)DEV_SET.add(x.author);}));
 function renderGrowth(){
@@ -370,9 +371,11 @@ function renderGrowth(){
   // 개발팀 전체: 선택과 무관하게 개발자 전원을 쌓는다
   const teamParts=authors.map(a=>({name:a,color:colorOf[a],data:months.map(m=>authorMonth(a,m))}));
   const team={name:'개발팀 합계',color:'#e5e7eb',bold:true,data:months.map((m,i)=>teamParts.reduce((s,se)=>s+se.data[i],0))};
-  document.getElementById('teamTitle').textContent='개발팀 전체 월별 추이 · '+METRIC_LABEL[state.metric];
+  const tMonths=growthMonths(TEAM_MAX);
+  const teamLong={name:'개발팀 합계',color:'#38bdf8',bold:true,data:tMonths.map(m=>[...DEV_SET].reduce((s,a)=>s+authorMonth(a,m),0))};
+  document.getElementById('teamTitle').textContent='개발팀 전체 월별 추이 · '+METRIC_LABEL[state.metric]+' · '+(tMonths[0]||'')+' ~ '+(tMonths[tMonths.length-1]||'')+' ('+tMonths.length+'개월)';
   // 팀원 수치를 합친 한 줄만 그린다 (개인별은 아래 그래프)
-  teamParts.length?chartT.draw([{...team,color:'#38bdf8'}],false,months):chartT.clear();
+  DEV_SET.size?chartT.draw([teamLong],false,tMonths):chartT.clear();
   legend('legendTeam',[{name:'개발팀 합계',color:'#38bdf8'}]);
   // 추세: 최근 3개월 평균 vs 직전 3개월 평균 (진행 중인 이번 달은 일부만 쌓여 있으므로 제외)
   const avg=xs=>xs.length?xs.reduce((s,v)=>s+v,0)/xs.length:0;
