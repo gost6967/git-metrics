@@ -16,6 +16,7 @@ import { fileURLToPath } from 'node:url';
 import { collect } from './collect.mjs';
 import { summarize, plain } from './summarize.mjs';
 import { loadHolidays } from './holidays.mjs';
+import { kbIndex } from './kb.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 // 공개 레포라 보고서 원문·상태는 커밋하지 않는다 (둘 다 gitignore, CI 상태는 Actions 캐시로 보존)
@@ -26,7 +27,7 @@ const PREVIEW_PUB = path.join(here, 'preview.pub.pem');
 const CI = !!process.env.CI;
 
 function parseArgs(argv) {
-  const a = { mode: 'daily', date: null, fetch: false, post: false, plain: false, skipHoliday: false, preview: false, postPending: false, includeReported: false };
+  const a = { mode: 'daily', date: null, fetch: false, post: false, plain: false, skipHoliday: false, preview: false, postPending: false, includeReported: false, kb: false };
   for (let i = 0; i < argv.length; i++) {
     const k = argv[i];
     if (k === '--mode') a.mode = argv[++i];
@@ -38,6 +39,7 @@ function parseArgs(argv) {
     else if (k === '--preview') a.preview = true;
     else if (k === '--post-pending') a.postPending = true;
     else if (k === '--include-reported') a.includeReported = true;
+    else if (k === '--kb') a.kb = true;
   }
   if (!['daily', 'weekly'].includes(a.mode)) throw new Error('--mode 는 daily 또는 weekly');
   if (a.includeReported && !a.preview) throw new Error('--include-reported 는 --preview 와만 쓴다');
@@ -176,6 +178,8 @@ async function main() {
   }
 
   const input = { title: p.title, period: p.period, mode: args.mode, people: data.people, releases: data.releases };
+  // --kb: knowledge-base 업무 문서 색인을 참고 자료로 붙인다 (기능 이름·목적 설명용)
+  if (args.kb) { input.kb = kbIndex(); console.log(`KB 참고 문서 ${input.kb ? input.kb.split('\n').length : 0}건`); }
   const text = args.plain ? plain(input) : await summarize(input);
 
   const out = path.join(OUT_DIR, args.mode, `${date}.md`);
