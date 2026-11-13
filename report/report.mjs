@@ -8,12 +8,14 @@
 //   --preview: 게시하지 않고 본문을 미리보기 공개키로 암호화해 out/preview.enc.json 에 쓰고(로컬에서 개인키로만 열림),
 //              게시 대기분(본문·보고 키)을 .pending/pending.json 에 남긴다 (CI 는 Actions 캐시로 보존).
 //   --include-reported: (--preview 전용) 이미 보고한 커밋도 넣어 만든다. 규칙 변경 확인용이라 이 미리보기는 게시할 수 없다.
+//   --no-kb: knowledge-base 업무 문서 색인 참고를 끈다 (기본은 참고)
+//   --seed daily|weekly|both: 요약·게시 없이 이 기간 커밋을 '보고함'으로만 기록 (보고 기록 복구용)
 //   --post-pending: 다시 만들지 않고 .pending/pending.json 의 본문을 그대로 게시하고 보고 기록을 남긴다.
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { collect } from './collect.mjs';
+import { collect, hashKey } from './collect.mjs';
 import { summarize, plain } from './summarize.mjs';
 import { loadHolidays } from './holidays.mjs';
 import { kbIndex } from './kb.mjs';
@@ -21,13 +23,14 @@ import { kbIndex } from './kb.mjs';
 const here = path.dirname(fileURLToPath(import.meta.url));
 // 공개 레포라 보고서 원문·상태는 커밋하지 않는다 (둘 다 gitignore, CI 상태는 Actions 캐시로 보존)
 const OUT_DIR = path.join(here, 'out');
-const STATE = path.join(here, '.state', 'seen.json');
+// 보고 기록은 레포에 커밋해 보존한다(Actions 캐시는 7일 미사용 시 지워져 2026-11 유실됨). 키는 해시만 저장.
+const STATE = path.join(here, 'state.json');
 const PENDING = path.join(here, '.pending', 'pending.json');
 const PREVIEW_PUB = path.join(here, 'preview.pub.pem');
 const CI = !!process.env.CI;
 
 function parseArgs(argv) {
-  const a = { mode: 'daily', date: null, fetch: false, post: false, plain: false, skipHoliday: false, preview: false, postPending: false, includeReported: false, kb: false };
+  const a = { mode: 'daily', date: null, fetch: false, post: false, plain: false, skipHoliday: false, preview: false, postPending: false, includeReported: false, kb: true, seed: null };
   for (let i = 0; i < argv.length; i++) {
     const k = argv[i];
     if (k === '--mode') a.mode = argv[++i];
@@ -40,9 +43,12 @@ function parseArgs(argv) {
     else if (k === '--post-pending') a.postPending = true;
     else if (k === '--include-reported') a.includeReported = true;
     else if (k === '--kb') a.kb = true;
+    else if (k === '--no-kb') a.kb = false;
+    else if (k === '--seed') a.seed = argv[++i];
   }
   if (!['daily', 'weekly'].includes(a.mode)) throw new Error('--mode 는 daily 또는 weekly');
   if (a.includeReported && !a.preview) throw new Error('--include-reported 는 --preview 와만 쓴다');
+  if (a.seed && !['daily', 'weekly', 'both'].includes(a.seed)) throw new Error('--seed 는 daily | weekly | both');
   return a;
 }
 
@@ -106,7 +112,7 @@ function period(mode, date, holidays) {
   };
 }
 
-// 이미 보고한 커밋 키 (모드별). 슬랙 게시가 성공했을 때만 갱신한다.
+// 이미 보고한 커밋 키 해시 (모드별). 슬랙 게시가 성공했을 때(또는 --seed)만 갱신한다.
 const KEEP_DAYS = 45;
 function loadState() {
   try { return JSON.parse(fs.readFileSync(STATE, 'utf8')); } catch { return { daily: {}, weekly: {} }; }
@@ -114,7 +120,7 @@ function loadState() {
 function saveState(state, mode, keys, date) {
   const cutoff = addDays(date, -KEEP_DAYS);
   const cur = Object.fromEntries(Object.entries(state[mode] || {}).filter(([, d]) => d >= cutoff));
-  for (const k of keys) cur[k] ??= date;
+  for (const k of keys) cur[hashKey(k)] ??= date;
   state[mode] = cur;
   fs.mkdirSync(path.dirname(STATE), { recursive: true });
   fs.writeFileSync(STATE, JSON.stringify(state, null, 1) + '\n');
@@ -165,20 +171,26 @@ async function main() {
   console.log(`[${args.mode}] ${p.since} ~ ${p.until}`);
 
   const state = loadState();
-  const exclude = args.includeReported ? new Set() : new Set(Object.keys(state[args.mode] || {}));
+  const exclude = args.includeReported || args.seed ? new Set() : new Set(Object.keys(state[args.mode] || {}));
   const staleDays = args.mode === 'daily' ? 7 : 14;
   const data = await collect({ since: p.since, until: p.until, fetch: args.fetch, exclude, staleDays });
   if (data.missing.length) console.warn('없는 레포(건너뜀):', data.missing.join(', '));
   const total = data.people.reduce((n, x) => n + x.count, 0);
   console.log(`커밋 ${total}건 · ${data.people.length}명 · 릴리스 ${data.releases.length}건 (이미 보고 ${data.excluded}건 제외)`);
   // 수동 실행 뒤 늦게 돈 예약 실행처럼, 새 커밋 없이 이미 보고한 것만 있으면 빈 보고를 다시 올리지 않는다
+  // --seed: 이 기간 커밋을 요약·게시 없이 '보고함'으로만 기록한다 (보고 기록 유실 복구·초기화용)
+  if (args.seed) {
+    for (const m of args.seed === 'both' ? ['daily', 'weekly'] : [args.seed]) saveState(state, m, data.keys, date);
+    console.log(`보고 기록 채움: ${args.seed} ← ${data.keys.length}건`);
+    return;
+  }
   if ((args.post || args.preview) && !data.keys.length && data.excluded) {
     console.log('새로 보고할 커밋이 없어 게시하지 않음');
     return;
   }
 
   const input = { title: p.title, period: p.period, mode: args.mode, people: data.people, releases: data.releases };
-  // --kb: knowledge-base 업무 문서 색인을 참고 자료로 붙인다 (기능 이름·목적 설명용)
+  // knowledge-base 업무 문서 색인을 참고 자료로 붙인다 (기본 켜짐, --no-kb 로 끔. 기능 이름·목적 설명용)
   if (args.kb) { input.kb = kbIndex(); console.log(`KB 참고 문서 ${input.kb ? input.kb.split('\n').length : 0}건`); }
   const text = args.plain ? plain(input) : await summarize(input);
 

@@ -1,5 +1,6 @@
 // 기간 내 커밋 수집 (모든 원격 브랜치, 병합 커밋 제외). 사람별로 묶고 릴리스 커밋은 따로 모은다.
 import { execFile } from 'node:child_process';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
@@ -42,6 +43,9 @@ function canon(email, name) {
   if (DEPLOY_BOT_RE.test(name + email)) return [name, true];
   return canonAuthor(email, name);
 }
+
+// 보고 기록(report/state.json, 공개 레포에 커밋)은 키 원문(레포·작성자·커밋 제목) 대신 해시만 남긴다
+export const hashKey = (k) => crypto.createHash('sha256').update(k).digest('hex').slice(0, 20);
 
 // 스쿼시 머지가 붙이는 " (#123)" 을 떼서 브랜치 커밋과 같은 작업으로 본다
 const normSubject = (s) => s.replace(/(\s*\(#\d+\))+\s*$/, '').trim();
@@ -109,7 +113,7 @@ async function collectRepo([key, rel, , product, layer], { since, until, fetch, 
     const [author, bot] = canon(c.email, c.name);
     const subject = normSubject(c.subject);
     const k = key + '\x1f' + author + '\x1f' + subject;
-    if (exclude.has(k)) { excluded++; continue; }
+    if (exclude.has(hashKey(k))) { excluded++; continue; }
     if (Date.parse(c.authored) < staleBefore) continue;
     const deployed = mainHashes.has(c.hash) || mainSubjects.has(subject);
     const prev = seen.get(k);
