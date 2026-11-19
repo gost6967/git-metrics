@@ -8,7 +8,7 @@ on:
   # schedule:
   #   # 시각을 바꾸면 report.mjs DAILY_AT/WEEKLY_AT도 같이 바꾼다.
   #   - cron: '50 8 * * 1-5'  # 일간: 평일 17:50 KST
-  #   - cron: '50 23 * * 0-4' # 주간: 평일 08:50 KST (UTC 일~목 23:50) — 그 주 마지막 근무일에만 게시 (보통 금, 금 휴무면 목)
+  #   - cron: '0 23 * * 0-4'  # 주간: 평일 08:00 KST (UTC 일~목 23:00) — 그 주 마지막 근무일에만 게시 (보통 금, 금 휴무면 목)
   workflow_dispatch:
     inputs:
       mode:
@@ -77,7 +77,7 @@ jobs:
           IN_SEED: ${{ github.event.inputs.seed }}
         run: |
           if [ "$EVENT" = "schedule" ]; then
-            if [ "$SCHEDULE" = "50 23 * * 0-4" ]; then echo "mode=weekly" >> "$GITHUB_OUTPUT"; else echo "mode=daily" >> "$GITHUB_OUTPUT"; fi
+            if [ "$SCHEDULE" = "0 23 * * 0-4" ]; then echo "mode=weekly" >> "$GITHUB_OUTPUT"; else echo "mode=daily" >> "$GITHUB_OUTPUT"; fi
             echo "post=true" >> "$GITHUB_OUTPUT"
             echo "skip_holiday=true" >> "$GITHUB_OUTPUT"
           else
